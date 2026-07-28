@@ -301,6 +301,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .puce-scenario .pastille { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .65; }
 .etiquette-douce { font-size: 12.5px; color: var(--encre-3); margin-left: auto; }
+.lien-discret {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--accent); font-size: inherit; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.lien-discret:hover { color: var(--accent-vif); }
 
 .calc-grille { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 22px; align-items: start; }
 @media (max-width: 1080px) { .calc-grille { grid-template-columns: 1fr; } }
@@ -1089,6 +1095,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent-vif); }
     } catch (e) { /* stockage indisponible : on continue en mémoire */ }
   }
 
+  // Un message important (« Enregistré sous… », « Chargé depuis… ») ne doit pas être
+  // effacé par l'horodatage de la sauvegarde automatique quelques centièmes plus tard.
+  let messageProtegeJusqua = 0;
+
   let minuterie = null;
   function sauver() {
     clearTimeout(minuterie);
@@ -1098,7 +1108,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent-vif); }
           scenarios: etat.scenarios, actif: etat.actif, coches: etat.coches, comparer: etat.comparer
         }));
         const el = document.getElementById("etat-sauvegarde");
-        if (el) {
+        if (el && Date.now() >= messageProtegeJusqua) {
           el.textContent = "Enregistré à " + new Date().toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" });
         }
       } catch (e) {
@@ -1779,8 +1789,48 @@ input[type="range"] { width: 100%; accent-color: var(--accent-vif); }
 
   document.getElementById("fenetre-fermer").addEventListener("click", () => fenetre.close());
 
+  // Téléchargement direct. Retourne false si le navigateur le refuse, ce qui arrive
+  // quand la page est affichée dans un cadre imbriqué.
+  function telechargerSauvegarde() {
+    try {
+      const blob = new Blob([texteExport()], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = nomFichier();
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Sélecteur de fichier direct, sans étape intermédiaire.
+  function ouvrirUnFichier(surSucces, surErreur) {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "application/json,.json,.txt";
+    inp.addEventListener("change", () => {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      const lecteur = new FileReader();
+      lecteur.onload = () => {
+        try { appliquer(lecteur.result); surSucces(f.name); }
+        catch (err) { surErreur(f.name); }
+      };
+      lecteur.readAsText(f);
+    });
+    inp.click();
+  }
+
+  const barreEtat = document.getElementById("etat-sauvegarde");
+  // Affiche un message et le protège de l'horodatage automatique pendant huit secondes.
+  const annoncer = (html) => { barreEtat.innerHTML = html; messageProtegeJusqua = Date.now() + 8000; };
+
   // ---- Sauvegarder ----
-  document.getElementById("btn-exporter").addEventListener("click", () => {
+  const ouvrirFenetreExport = () => {
     document.getElementById("fenetre-titre").textContent = "Sauvegarder vos chiffres";
     document.getElementById("fenetre-texte").innerHTML = dansUnCadre
       ? "Vos trois immeubles et vos cases cochées. Ici, le téléchargement de fichier est souvent bloqué : "
@@ -1830,10 +1880,21 @@ input[type="range"] { width: 100%; accent-color: var(--accent-vif); }
 
     fenetre.showModal();
     zone.focus(); zone.select(); zone.scrollTop = 0;
+  };
+
+  document.getElementById("btn-exporter").addEventListener("click", () => {
+    // Hors cadre imbriqué : on télécharge, sans rien demander. C'est le geste attendu.
+    if (!dansUnCadre && telechargerSauvegarde()) {
+      annoncer("Enregistré sous « " + nomFichier() + " » · "
+        + '<button type="button" class="lien-discret" id="plutot-copier">copier le texte à la place</button>');
+      document.getElementById("plutot-copier").addEventListener("click", ouvrirFenetreExport);
+      return;
+    }
+    ouvrirFenetreExport();
   });
 
   // ---- Reprendre ----
-  document.getElementById("btn-importer").addEventListener("click", () => {
+  const ouvrirFenetreImport = () => {
     document.getElementById("fenetre-titre").textContent = "Reprendre une sauvegarde";
     document.getElementById("fenetre-texte").innerHTML = dansUnCadre
       ? "<b>Collez ici</b> le texte obtenu avec le bouton Exporter, puis cliquez sur Charger. "
@@ -1864,28 +1925,34 @@ input[type="range"] { width: 100%; accent-color: var(--accent-vif); }
     });
 
     document.getElementById("act-ouvrir").addEventListener("click", () => {
-      const inp = document.createElement("input");
-      inp.type = "file"; inp.accept = "application/json,.json,.txt";
-      inp.addEventListener("change", () => {
-        const f = inp.files && inp.files[0];
-        if (!f) return;
-        const lecteur = new FileReader();
-        lecteur.onload = () => {
-          try {
-            appliquer(lecteur.result);
-            dire("Chargé depuis « " + f.name + " ».", "bien");
-            setTimeout(() => fenetre.close(), 900);
-          } catch (err) {
-            dire("Fichier illisible. Attendu : une sauvegarde produite par cet outil.", "mal");
-          }
-        };
-        lecteur.readAsText(f);
-      });
-      inp.click();
+      ouvrirUnFichier(
+        (nom) => { dire("Chargé depuis « " + nom + " ».", "bien"); setTimeout(() => fenetre.close(), 900); },
+        () => dire("Fichier illisible. Attendu : une sauvegarde produite par cet outil.", "mal")
+      );
     });
 
     fenetre.showModal();
     zone.focus();
+  };
+
+  document.getElementById("btn-importer").addEventListener("click", () => {
+    // Hors cadre imbriqué : on ouvre directement le sélecteur de fichier.
+    if (!dansUnCadre) {
+      ouvrirUnFichier(
+        (nom) => {
+          annoncer("Chargé depuis « " + nom + " » · "
+            + '<button type="button" class="lien-discret" id="plutot-coller">coller un texte à la place</button>');
+          document.getElementById("plutot-coller").addEventListener("click", ouvrirFenetreImport);
+        },
+        () => {
+          annoncer("Fichier illisible, attendu : une sauvegarde de cet outil · "
+            + '<button type="button" class="lien-discret" id="plutot-coller">coller le texte à la place</button>');
+          document.getElementById("plutot-coller").addEventListener("click", ouvrirFenetreImport);
+        }
+      );
+      return;
+    }
+    ouvrirFenetreImport();
   });
 
   document.getElementById("btn-imprimer").addEventListener("click", () => {
