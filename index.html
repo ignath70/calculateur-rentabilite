@@ -1,0 +1,1952 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Calculateur de rentabilité pour un immeuble à revenus au Québec : cashflow, ratio de couverture de la dette, points de bascule et vérifications avant offre.">
+<title>Analyse de rentabilité — immeuble à revenus</title>
+</head>
+<body>
+<title>Analyse de rentabilité — immeuble à revenus</title>
+
+<style>
+/* ============================================================
+   JETONS
+   ============================================================ */
+:root {
+  color-scheme: light;
+
+  /* Fonds et encres — neutres biaisés vers l'indigo */
+  --papier:      #ffffff;
+  --fond:        #f4f4f8;
+  --fond-creux:  #ebecf2;
+  --encre:       #171a26;
+  --encre-2:     #545a6e;
+  --encre-3:     #7d8397;
+  --filet:       #dcdee8;
+  --filet-fort:  #c3c6d6;
+
+  /* Accent unique */
+  --accent:      #3550a0;
+  --accent-vif:  #3e63b0;
+  --accent-doux: #e7ebf7;
+
+  /* Statuts — réservés, jamais réutilisés comme couleur de série */
+  --bon:         #0d6b48;
+  --bon-fond:    #e0f0e9;
+  --limite:      #8a5d0d;
+  --limite-fond: #f7edd9;
+  --alerte:      #a8342a;
+  --alerte-fond: #f8e4e2;
+
+  /* Série catégorielle du graphique de répartition (validée) */
+  --serie-dette:    #3e63b0;
+  --serie-depenses: #b86f2e;
+  --serie-reste:    #0f9271;
+
+  --champ-fond:  #fffdf2;
+  --champ-bord:  #d8cfa8;
+
+  /* Typographie */
+  --titre: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --corps: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --data:  "Cascadia Mono", "SF Mono", ui-monospace, Consolas, "Roboto Mono", monospace;
+
+  --r: 3px;
+  --ombre: 0 1px 2px rgba(23, 26, 38, .06), 0 6px 20px -12px rgba(23, 26, 38, .22);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --papier:      #1b1e28;
+    --fond:        #14161d;
+    --fond-creux:  #232733;
+    --encre:       #e9eaf1;
+    --encre-2:     #a2a8bd;
+    --encre-3:     #7e849a;
+    --filet:       #2e3240;
+    --filet-fort:  #414658;
+    --accent:      #8ba8ec;
+    --accent-vif:  #7c9ee8;
+    --accent-doux: #232a41;
+    --bon:         #46bd8f;
+    --bon-fond:    #16302a;
+    --limite:      #d7a445;
+    --limite-fond: #322817;
+    --alerte:      #e8776a;
+    --alerte-fond: #37211f;
+    --serie-dette:    #5c82d0;
+    --serie-depenses: #c87f3e;
+    --serie-reste:    #23a47f;
+    --champ-fond:  #23252c;
+    --champ-bord:  #4a4636;
+    --ombre: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px -12px rgba(0,0,0,.7);
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --papier: #ffffff; --fond: #f4f4f8; --fond-creux: #ebecf2;
+  --encre: #171a26; --encre-2: #545a6e; --encre-3: #7d8397;
+  --filet: #dcdee8; --filet-fort: #c3c6d6;
+  --accent: #3550a0; --accent-vif: #3e63b0; --accent-doux: #e7ebf7;
+  --bon: #0d6b48; --bon-fond: #e0f0e9;
+  --limite: #8a5d0d; --limite-fond: #f7edd9;
+  --alerte: #a8342a; --alerte-fond: #f8e4e2;
+  --serie-dette: #3e63b0; --serie-depenses: #b86f2e; --serie-reste: #0f9271;
+  --champ-fond: #fffdf2; --champ-bord: #d8cfa8;
+  --ombre: 0 1px 2px rgba(23, 26, 38, .06), 0 6px 20px -12px rgba(23, 26, 38, .22);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --papier: #1b1e28; --fond: #14161d; --fond-creux: #232733;
+  --encre: #e9eaf1; --encre-2: #a2a8bd; --encre-3: #7e849a;
+  --filet: #2e3240; --filet-fort: #414658;
+  --accent: #8ba8ec; --accent-vif: #7c9ee8; --accent-doux: #232a41;
+  --bon: #46bd8f; --bon-fond: #16302a;
+  --limite: #d7a445; --limite-fond: #322817;
+  --alerte: #e8776a; --alerte-fond: #37211f;
+  --serie-dette: #5c82d0; --serie-depenses: #c87f3e; --serie-reste: #23a47f;
+  --champ-fond: #23252c; --champ-bord: #4a4636;
+  --ombre: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px -12px rgba(0,0,0,.7);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fond);
+  color: var(--encre);
+  font-family: var(--corps);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--titre); font-weight: 600; text-wrap: balance; margin: 0; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+:focus-visible { outline: 2px solid var(--accent-vif); outline-offset: 2px; border-radius: 2px; }
+
+.enveloppe { max-width: 1320px; margin: 0 auto; padding: 0 22px; }
+
+/* ============================================================
+   EN-TÊTE
+   ============================================================ */
+.bandeau {
+  background: var(--papier);
+  border-bottom: 1px solid var(--filet);
+  position: sticky; top: 0; z-index: 40;
+}
+.bandeau-haut {
+  display: flex; align-items: baseline; gap: 16px;
+  flex-wrap: wrap; padding: 15px 0 12px;
+}
+.marque { display: flex; align-items: baseline; gap: 11px; margin-right: auto; }
+.marque h1 { font-size: 19px; letter-spacing: -.01em; }
+.marque .lieu {
+  font-family: var(--data); font-size: 10.5px; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--encre-3);
+  border-left: 1px solid var(--filet-fort); padding-left: 11px;
+}
+.actions { display: flex; gap: 7px; flex-wrap: wrap; }
+
+.btn {
+  background: var(--papier); border: 1px solid var(--filet-fort);
+  color: var(--encre-2); border-radius: var(--r);
+  padding: 6px 12px; font-size: 12.5px; cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.btn:hover { background: var(--fond-creux); color: var(--encre); border-color: var(--encre-3); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:disabled:hover { background: var(--papier); color: var(--encre-2); border-color: var(--filet-fort); }
+.btn-fort { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-fort:hover { background: var(--accent-vif); border-color: var(--accent-vif); color: #fff; }
+:root[data-theme="dark"] .btn-fort, :root[data-theme="dark"] .btn-fort:hover { color: #10131b; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .btn-fort { color: #10131b; }
+}
+
+/* Onglets */
+.onglets { display: flex; gap: 2px; }
+.onglet {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 9px 16px 10px; cursor: pointer; color: var(--encre-2);
+  font-size: 13.5px; display: flex; align-items: center; gap: 9px;
+  border-radius: 0;
+}
+.onglet:hover { color: var(--encre); }
+.onglet[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.onglet .rang {
+  font-family: var(--data); font-size: 10px; color: var(--encre-3);
+  border: 1px solid var(--filet-fort); border-radius: 2px; padding: 0 4px; line-height: 1.5;
+}
+.onglet[aria-selected="true"] .rang { color: var(--accent); border-color: var(--accent); }
+
+/* ============================================================
+   PAGES
+   ============================================================ */
+.page { display: none; padding: 26px 0 70px; }
+.page.actif { display: block; }
+
+.entete-page { max-width: 66ch; margin-bottom: 26px; }
+.entete-page .surtitre {
+  font-family: var(--data); font-size: 10.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--encre-3); margin-bottom: 9px;
+}
+.entete-page h2 { font-size: 27px; line-height: 1.2; letter-spacing: -.015em; }
+.entete-page p { color: var(--encre-2); margin: 11px 0 0; }
+
+.carte {
+  background: var(--papier); border: 1px solid var(--filet);
+  border-radius: var(--r); box-shadow: var(--ombre);
+}
+
+/* ============================================================
+   PAGE GUIDE
+   ============================================================ */
+.guide-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 940px) { .guide-grille { grid-template-columns: 1fr; } }
+
+.bloc { padding: 20px 22px; }
+.bloc + .bloc { border-top: 1px solid var(--filet); }
+.bloc h3 { font-size: 16px; margin-bottom: 4px; }
+.bloc > p { color: var(--encre-2); font-size: 14px; }
+.bloc p:last-child { margin-bottom: 0; }
+
+.etapes { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 13px; counter-reset: e; }
+.etapes li {
+  counter-increment: e; display: grid; grid-template-columns: 26px 1fr; gap: 13px;
+  align-items: baseline; font-size: 14px; color: var(--encre-2);
+}
+.etapes li::before {
+  content: counter(e); font-family: var(--data); font-size: 11px;
+  color: var(--accent); border: 1px solid var(--accent-doux);
+  background: var(--accent-doux); border-radius: 2px;
+  text-align: center; padding: 2px 0; line-height: 1.3;
+}
+.etapes li > span { min-width: 0; }
+.etapes li b { color: var(--encre); font-weight: 600; }
+
+/* Glossaire dépliable */
+.lexique { display: grid; }
+.terme { border-top: 1px solid var(--filet); }
+.terme:first-child { border-top: 0; }
+.terme summary {
+  cursor: pointer; list-style: none; padding: 12px 22px;
+  display: flex; align-items: baseline; gap: 12px;
+  font-size: 14px; font-weight: 600;
+}
+.terme summary::-webkit-details-marker { display: none; }
+.terme summary::after {
+  content: "+"; margin-left: auto; font-family: var(--data);
+  color: var(--encre-3); font-weight: 400; font-size: 15px;
+}
+.terme[open] summary::after { content: "\2013"; }
+.terme summary:hover { background: var(--fond-creux); }
+.terme .sigle {
+  font-family: var(--data); font-size: 10.5px; color: var(--accent);
+  background: var(--accent-doux); border-radius: 2px; padding: 2px 6px;
+  font-weight: 400; letter-spacing: .04em; white-space: nowrap;
+}
+.terme .corps { padding: 0 22px 16px 22px; font-size: 13.5px; color: var(--encre-2); }
+.terme .corps p { margin: 0 0 9px; }
+.terme .corps p:last-child { margin-bottom: 0; }
+.terme .formule {
+  font-family: var(--data); font-size: 12px; color: var(--encre);
+  background: var(--fond-creux); border-left: 2px solid var(--filet-fort);
+  padding: 7px 11px; margin: 0 0 9px; overflow-x: auto;
+}
+.terme .cible { color: var(--encre); font-weight: 600; }
+
+.bareme { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 12px; }
+.bareme th, .bareme td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--filet); vertical-align: top; }
+.bareme th {
+  font-family: var(--data); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--encre-3); font-weight: 400;
+}
+.bareme td:first-child { color: var(--encre); font-weight: 600; width: 30%; }
+.bareme td:nth-child(2) { font-family: var(--data); font-size: 12px; color: var(--accent); width: 22%; }
+.bareme td:last-child { color: var(--encre-2); }
+
+.avis {
+  font-size: 12.5px; color: var(--encre-2); background: var(--fond-creux);
+  border-left: 2px solid var(--filet-fort); padding: 12px 15px; border-radius: 0 var(--r) var(--r) 0;
+}
+.avis b { color: var(--encre); }
+
+/* ============================================================
+   PAGE CALCUL
+   ============================================================ */
+.barre-scenarios {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 18px; padding-bottom: 15px; border-bottom: 1px solid var(--filet);
+}
+.jeu-scenarios { display: flex; gap: 5px; }
+.puce-scenario {
+  border: 1px solid var(--filet-fort); background: var(--papier);
+  border-radius: var(--r); padding: 5px 14px; cursor: pointer;
+  font-size: 13px; color: var(--encre-2);
+  display: flex; align-items: center; gap: 9px;
+}
+.puce-scenario:hover { border-color: var(--encre-3); }
+.puce-scenario[aria-pressed="true"] {
+  background: var(--accent-doux); border-color: var(--accent); color: var(--accent); font-weight: 600;
+}
+.puce-scenario .pastille { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .65; }
+.etiquette-douce { font-size: 12.5px; color: var(--encre-3); margin-left: auto; }
+
+.calc-grille { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 22px; align-items: start; }
+@media (max-width: 1080px) { .calc-grille { grid-template-columns: 1fr; } }
+
+/* Sections du formulaire */
+.section-form { margin-bottom: 16px; }
+.section-form > summary {
+  cursor: pointer; list-style: none; padding: 13px 20px;
+  display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid transparent;
+}
+.section-form[open] > summary { border-bottom-color: var(--filet); }
+.section-form > summary::-webkit-details-marker { display: none; }
+.section-form > summary h3 { font-size: 15.5px; }
+.section-form > summary .num {
+  font-family: var(--data); font-size: 11px; color: var(--encre-3);
+  border: 1px solid var(--filet-fort); border-radius: 2px; padding: 1px 6px;
+}
+.section-form > summary .resume {
+  margin-left: auto; font-family: var(--data); font-size: 12.5px;
+  color: var(--encre-2); font-variant-numeric: tabular-nums; text-align: right;
+}
+.section-form > summary::after { content: "\25BE"; color: var(--encre-3); font-size: 10px; transition: transform .15s; }
+.section-form[open] > summary::after { transform: rotate(180deg); }
+.section-form > summary:hover { background: var(--fond-creux); }
+.corps-section { padding: 6px 20px 16px; }
+
+/* Lignes de saisie */
+.ligne {
+  display: grid; grid-template-columns: 1fr 148px; gap: 14px;
+  align-items: center; padding: 7px 0; border-bottom: 1px solid var(--filet);
+}
+.ligne:last-child { border-bottom: 0; }
+@media (max-width: 460px) { .ligne { grid-template-columns: 1fr 118px; gap: 9px; } }
+/* Le texte libre a besoin de toute la largeur : il passe sous son intitulé. */
+.ligne.ample { grid-template-columns: 1fr; gap: 6px; }
+.ligne.ample .zone-champ { justify-content: stretch; }
+
+/* Question oui / non qui commande les lignes suivantes */
+.ligne.bascule-champ .lib { font-weight: 600; }
+.ligne.bascule-champ.engagee { background: var(--accent-doux); margin: 0 -20px; padding: 10px 20px; }
+.interrupteur {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  border: 1px solid var(--filet-fort); border-radius: 999px;
+  padding: 4px 12px 4px 9px; background: var(--papier);
+  font-family: var(--data); font-size: 12px; color: var(--encre-2);
+}
+.interrupteur:hover { border-color: var(--encre-3); }
+.interrupteur input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent-vif); cursor: pointer; }
+.ligne.bascule-champ.engagee .interrupteur { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.ligne > .intitule { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ligne .lib { font-size: 13.5px; }
+.ligne .note { font-size: 12px; color: var(--encre-3); line-height: 1.4; }
+
+.zone-champ { display: flex; align-items: center; gap: 5px; justify-content: flex-end; }
+.zone-champ .unite { font-family: var(--data); font-size: 12px; color: var(--encre-3); }
+input.saisie {
+  width: 100%; background: var(--champ-fond); border: 1px solid var(--champ-bord);
+  border-radius: var(--r); padding: 5px 9px; text-align: right;
+  font-family: var(--data); font-size: 13px; color: var(--accent);
+  font-variant-numeric: tabular-nums; min-width: 0;
+}
+input.saisie[type="text"] { text-align: left; font-family: var(--corps); color: var(--encre); }
+input.saisie:hover { border-color: var(--encre-3); }
+
+/* Lignes calculées */
+.ligne.calculee { background: transparent; }
+.ligne.calculee .lib { color: var(--encre-2); }
+.ligne .valeur {
+  font-family: var(--data); font-size: 13px; text-align: right;
+  font-variant-numeric: tabular-nums; color: var(--encre-2); padding-right: 2px;
+}
+.ligne.total { border-top: 1px solid var(--filet-fort); border-bottom: 0; margin-top: 3px; padding-top: 10px; }
+.ligne.total .lib { font-weight: 600; color: var(--encre); font-size: 13px; letter-spacing: .01em; }
+.ligne.total .valeur { color: var(--encre); font-weight: 600; font-size: 14px; }
+.negatif { color: var(--alerte) !important; }
+
+/* ============================================================
+   TABLEAU DE BORD
+   ============================================================ */
+.bord { position: sticky; top: 108px; display: grid; gap: 16px; }
+@media (max-width: 1080px) { .bord { position: static; } }
+
+.verdict { padding: 18px 20px; border-left: 3px solid var(--filet-fort); }
+.verdict.bon    { border-left-color: var(--bon); background: var(--bon-fond); }
+.verdict.limite { border-left-color: var(--limite); background: var(--limite-fond); }
+.verdict.alerte { border-left-color: var(--alerte); background: var(--alerte-fond); }
+.verdict.attente { border-left-color: var(--filet-fort); background: var(--fond-creux); }
+.verdict.attente .etat { color: var(--encre-2); }
+.jeton.attente { background: var(--fond-creux); color: var(--encre-3); }
+.heros .montant.attente { color: var(--encre-3); }
+.verdict .etat {
+  font-family: var(--titre); font-size: 19px; letter-spacing: .02em;
+  display: flex; align-items: center; gap: 10px;
+}
+.verdict.bon .etat { color: var(--bon); }
+.verdict.limite .etat { color: var(--limite); }
+.verdict.alerte .etat { color: var(--alerte); }
+.verdict .glyphe { font-family: var(--data); font-size: 15px; }
+.verdict .explication { font-size: 13px; color: var(--encre-2); margin-top: 7px; }
+
+/* Chiffre-clé */
+.entete-bord {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 15px 20px 0; gap: 12px;
+}
+.entete-bord h3 { font-size: 14px; }
+.entete-bord .mini {
+  font-family: var(--data); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--encre-3);
+}
+.heros { padding: 10px 20px 18px; }
+.heros .montant {
+  font-family: var(--data); font-size: 40px; line-height: 1.05;
+  font-variant-numeric: tabular-nums; letter-spacing: -.03em;
+}
+.heros .montant.bon { color: var(--bon); }
+.heros .montant.limite { color: var(--limite); }
+.heros .montant.alerte { color: var(--alerte); }
+.heros .sous { font-size: 12.5px; color: var(--encre-2); margin-top: 5px; }
+
+/* Tuiles d'indicateurs */
+.tuiles { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--filet); }
+.tuile { padding: 13px 20px; border-bottom: 1px solid var(--filet); }
+.tuile:nth-child(odd) { border-right: 1px solid var(--filet); }
+.tuile:nth-last-child(-n+2) { border-bottom: 0; }
+.tuile .nom {
+  font-family: var(--data); font-size: 10px; letter-spacing: .11em;
+  text-transform: uppercase; color: var(--encre-3);
+  display: flex; align-items: center; gap: 6px;
+}
+.tuile .chiffre {
+  font-family: var(--data); font-size: 21px; font-variant-numeric: tabular-nums;
+  margin-top: 4px; letter-spacing: -.02em;
+}
+.tuile .repere { font-size: 11.5px; color: var(--encre-3); margin-top: 1px; }
+.jeton {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--data); font-size: 10px; letter-spacing: .06em;
+  padding: 1px 6px; border-radius: 2px; text-transform: uppercase;
+}
+.jeton.bon    { background: var(--bon-fond); color: var(--bon); }
+.jeton.limite { background: var(--limite-fond); color: var(--limite); }
+.jeton.alerte { background: var(--alerte-fond); color: var(--alerte); }
+
+/* Répartition — barre empilée */
+.repartition { padding: 15px 20px 18px; border-top: 1px solid var(--filet); }
+.barre-rep {
+  display: flex; height: 26px; border-radius: 2px; overflow: hidden;
+  background: var(--fond-creux); margin: 11px 0 12px; gap: 2px;
+}
+.segment { position: relative; transition: width .25s ease; min-width: 2px; }
+.segment[data-cle="depenses"] { background: var(--serie-depenses); }
+.segment[data-cle="dette"]    { background: var(--serie-dette); }
+.segment[data-cle="reste"]    { background: var(--serie-reste); }
+.segment[data-cle="deficit"]  { background: var(--alerte); }
+.legende { display: grid; gap: 6px; }
+.item-legende {
+  display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--encre-2);
+}
+.item-legende .puce { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.item-legende .val {
+  margin-left: auto; font-family: var(--data); font-variant-numeric: tabular-nums;
+  color: var(--encre); font-size: 12.5px;
+}
+.item-legende .pc { font-family: var(--data); font-size: 11.5px; color: var(--encre-3); width: 44px; text-align: right; }
+
+/* Points de bascule */
+.bascules { padding: 15px 20px 18px; border-top: 1px solid var(--filet); }
+.bascule {
+  display: flex; align-items: baseline; gap: 12px; padding: 8px 0;
+  border-bottom: 1px solid var(--filet); font-size: 13px;
+}
+.bascule:last-child { border-bottom: 0; }
+.bascule .quoi { color: var(--encre-2); }
+.bascule .cb {
+  margin-left: auto; font-family: var(--data); font-variant-numeric: tabular-nums;
+  font-size: 14px; color: var(--encre); white-space: nowrap;
+}
+.bascule.majeure .quoi { color: var(--encre); font-weight: 600; }
+.bascule.majeure .cb { color: var(--accent); font-size: 15px; }
+
+/* Test de résistance */
+.resistance { padding: 15px 20px 20px; border-top: 1px solid var(--filet); }
+.curseur { display: grid; gap: 5px; margin-top: 13px; }
+.curseur .haut { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; }
+.curseur .haut .t { color: var(--encre-2); }
+.curseur .haut .v {
+  margin-left: auto; font-family: var(--data); font-variant-numeric: tabular-nums;
+  color: var(--accent); font-size: 12.5px;
+}
+input[type="range"] { width: 100%; accent-color: var(--accent-vif); }
+.resultat-stress {
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--filet);
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+}
+.resultat-stress .t { font-size: 12.5px; color: var(--encre-2); }
+.resultat-stress .v {
+  font-family: var(--data); font-size: 19px; font-variant-numeric: tabular-nums; margin-left: auto;
+}
+.resultat-stress .d { font-family: var(--data); font-size: 12px; color: var(--encre-3); }
+
+/* ============================================================
+   COMPARAISON
+   ============================================================ */
+.enveloppe-tableau { overflow-x: auto; }
+.comparatif { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 620px; }
+.comparatif th, .comparatif td { padding: 9px 14px; border-bottom: 1px solid var(--filet); text-align: right; }
+.comparatif th:first-child, .comparatif td:first-child { text-align: left; }
+.comparatif thead th {
+  font-family: var(--data); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--encre-3); font-weight: 400;
+  border-bottom: 1px solid var(--filet-fort);
+}
+.comparatif td { font-family: var(--data); font-variant-numeric: tabular-nums; }
+.comparatif td:first-child { font-family: var(--corps); color: var(--encre-2); }
+.comparatif tr.marquante td { font-weight: 600; color: var(--encre); }
+.comparatif tr.marquante td:first-child { color: var(--encre); }
+
+/* ============================================================
+   CHECKLIST
+   ============================================================ */
+.check-grille { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 22px; align-items: start; }
+@media (max-width: 1000px) { .check-grille { grid-template-columns: 1fr; } }
+
+.groupe-check + .groupe-check { border-top: 1px solid var(--filet); }
+.entete-groupe { padding: 16px 20px 4px; display: flex; align-items: baseline; gap: 12px; }
+.entete-groupe h3 { font-size: 15px; }
+.entete-groupe .compte {
+  margin-left: auto; font-family: var(--data); font-size: 11.5px;
+  color: var(--encre-3); font-variant-numeric: tabular-nums;
+}
+.liste-check { list-style: none; margin: 0; padding: 0 20px 16px; }
+.liste-check li { border-bottom: 1px solid var(--filet); }
+.liste-check li:last-child { border-bottom: 0; }
+.liste-check label {
+  display: grid; grid-template-columns: 17px 1fr; gap: 12px;
+  padding: 10px 0; cursor: pointer; align-items: start;
+}
+.liste-check input { margin: 3px 0 0; width: 15px; height: 15px; accent-color: var(--accent-vif); cursor: pointer; }
+.liste-check .texte { display: grid; gap: 2px; min-width: 0; }
+.liste-check .quoi { font-size: 13.5px; }
+.liste-check .pourquoi { font-size: 12px; color: var(--encre-3); line-height: 1.45; }
+.liste-check input:checked ~ .texte .quoi { color: var(--encre-3); text-decoration: line-through; text-decoration-thickness: 1px; }
+.liste-check input:checked ~ .texte .pourquoi { opacity: .5; }
+
+.jauge { height: 5px; background: var(--fond-creux); border-radius: 3px; overflow: hidden; margin-top: 10px; }
+.jauge > span { display: block; height: 100%; background: var(--accent); transition: width .25s ease; }
+
+.conditions { padding: 16px 20px 18px; }
+.conditions ol { margin: 12px 0 0; padding-left: 19px; display: grid; gap: 8px; }
+.conditions li { font-size: 13px; color: var(--encre-2); }
+.conditions li::marker { color: var(--accent); font-family: var(--data); font-size: 11px; }
+.vide { font-size: 13px; color: var(--encre-3); font-style: italic; margin-top: 12px; }
+
+/* ============================================================
+   FENÊTRE SAUVEGARDE / REPRISE
+   ============================================================ */
+.fenetre {
+  border: 1px solid var(--filet-fort); border-radius: var(--r);
+  background: var(--papier); color: var(--encre);
+  padding: 0; width: min(660px, 92vw); max-height: 86vh;
+  box-shadow: 0 24px 60px -20px rgba(10, 12, 20, .5);
+}
+.fenetre::backdrop { background: rgba(10, 12, 20, .55); }
+.fenetre-entete {
+  display: flex; align-items: center; gap: 16px;
+  padding: 15px 20px; border-bottom: 1px solid var(--filet);
+}
+.fenetre-entete h3 { font-size: 16px; margin-right: auto; }
+.fenetre-corps { padding: 18px 20px 20px; display: grid; gap: 13px; }
+.fenetre-corps p { margin: 0; font-size: 13.5px; color: var(--encre-2); }
+.fenetre-corps p b { color: var(--encre); }
+#fenetre-zone {
+  width: 100%; min-height: 190px; resize: vertical;
+  background: var(--fond-creux); border: 1px solid var(--filet-fort);
+  border-radius: var(--r); padding: 10px 12px;
+  font-family: var(--data); font-size: 11.5px; line-height: 1.5; color: var(--encre-2);
+}
+.fenetre-message { font-size: 12.5px; min-height: 1em; }
+.fenetre-message.bien { color: var(--bon); }
+.fenetre-message.mal { color: var(--alerte); }
+.fenetre-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ============================================================
+   PIED
+   ============================================================ */
+.pied {
+  border-top: 1px solid var(--filet); margin-top: 40px; padding: 22px 0 40px;
+  font-size: 12px; color: var(--encre-3); max-width: 76ch;
+}
+.pied p { margin: 0 0 8px; }
+
+/* En-tête réservé au papier : une feuille imprimée doit s'identifier seule. */
+.entete-impression {
+  display: none; align-items: baseline; gap: 14px;
+  border-bottom: 1px solid #999; padding-bottom: 8px; margin-bottom: 16px;
+}
+.entete-impression .quoi { font-family: var(--titre); font-size: 15px; font-weight: 600; }
+.entete-impression .qui { font-size: 12px; }
+.entete-impression .quand { margin-left: auto; font-family: var(--data); font-size: 10px; }
+
+/* ============================================================
+   IMPRESSION
+   ============================================================ */
+@media print {
+  .bandeau, .actions, .barre-scenarios, .resistance, .onglets, .fenetre { display: none !important; }
+  body { background: #fff; font-size: 11px; }
+  /* On imprime uniquement l'onglet affiché : imprimer les trois d'un coup gaspille
+     une dizaine de pages que personne ne demande. */
+  .page { display: none !important; }
+  .page.actif { display: block !important; padding: 0; }
+  .entete-impression { display: flex !important; }
+  .carte { box-shadow: none; border: 1px solid #ccc; }
+  .bord { position: static; }
+  .calc-grille, .guide-grille, .check-grille { grid-template-columns: 1fr; }
+  .section-form > .corps-section { display: block !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<header class="bandeau">
+  <div class="enveloppe">
+    <div class="bandeau-haut">
+      <div class="marque">
+        <h1>Analyse de rentabilité</h1>
+        <span class="lieu">Immeuble à revenus · Québec</span>
+      </div>
+      <div class="actions">
+        <button class="btn" id="btn-theme" title="Basculer clair / sombre">Thème</button>
+        <button class="btn" id="btn-exporter">Exporter</button>
+        <button class="btn" id="btn-importer">Importer</button>
+        <button class="btn" id="btn-imprimer">Imprimer</button>
+        <button class="btn btn-fort" id="btn-reinit">Réinitialiser</button>
+      </div>
+    </div>
+    <nav class="onglets" role="tablist">
+      <button class="onglet" role="tab" aria-selected="false" data-page="guide"><span class="rang">01</span>Comment lire les chiffres</button>
+      <button class="onglet" role="tab" aria-selected="true" data-page="calcul"><span class="rang">02</span>Calculateur</button>
+      <button class="onglet" role="tab" aria-selected="false" data-page="checklist"><span class="rang">03</span>Avant de faire une offre</button>
+    </nav>
+  </div>
+</header>
+
+<main class="enveloppe">
+
+<div class="entete-impression" id="entete-impression">
+  <span class="quoi">Analyse de rentabilité</span>
+  <span class="qui" id="impr-sujet"></span>
+  <span class="quand" id="impr-date"></span>
+</div>
+
+
+<!-- ==================== PAGE 1 : GUIDE ==================== -->
+<section class="page" id="page-guide" role="tabpanel">
+  <div class="entete-page">
+    <div class="surtitre">Mode d'emploi</div>
+    <h2>Cet immeuble va-t-il vous rapporter, ou vous coûter de l'argent chaque mois&nbsp;?</h2>
+    <p>Tout le reste découle de cette question. L'outil vous force à inscrire les dépenses que les fiches de vendeur oublient presque toujours&nbsp;: la vacance, l'entretien, la gestion et la réserve de remplacement. C'est précisément là que le calcul d'un débutant s'écroule.</p>
+  </div>
+
+  <div class="guide-grille">
+    <div style="display:grid; gap:22px;">
+      <div class="carte">
+        <div class="bloc">
+          <h3>La marche à suivre</h3>
+          <ol class="etapes">
+            <li><span>Ouvrez l'onglet <b>Calculateur</b>. Les immeubles <b>A</b> et <b>B</b> sont déjà remplis à titre d'exemple&nbsp;: un triplex de région qui s'autofinance et un triplex urbain qui ne passe pas. Ils servent de repères.</span></li>
+            <li><span>Basculez sur l'<b>immeuble C</b>, la colonne qui vous revient, et remplissez les champs sur fond crème. Tout le reste se calcule à mesure que vous tapez.</span></li>
+            <li><span>Surveillez le <b>verdict</b> en haut à droite. Il ne prend jamais la moyenne&nbsp;: il retient le plus faible des trois axes, parce qu'un seul maillon suffit à tuer un dossier.</span></li>
+            <li><span>Poussez les <b>curseurs de résistance</b>. Un taux qui monte de deux points au renouvellement, un logement vide trois mois&nbsp;: si le cashflow ne survit pas, l'immeuble est trop juste.</span></li>
+            <li><span>Lisez les <b>points de bascule</b>. Ils vous donnent le prix à ne pas dépasser, ce qui transforme une intuition en position de négociation chiffrée.</span></li>
+            <li><span>Passez enfin l'onglet <b>Avant de faire une offre</b>. Ce que vous n'aurez pas coché devient automatiquement une condition à inscrire dans votre promesse d'achat.</span></li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="carte">
+        <div class="bloc" style="padding-bottom:2px;">
+          <h3>Les indicateurs, en clair</h3>
+          <p>Chaque terme, ce qu'il mesure, et le seuil auquel il devient un problème.</p>
+        </div>
+        <div class="lexique" id="lexique"></div>
+      </div>
+    </div>
+
+    <div style="display:grid; gap:22px;">
+      <div class="carte">
+        <div class="bloc">
+          <h3>Les valeurs par défaut, et d'où elles viennent</h3>
+          <p>Ce sont des points de départ tirés des barèmes d'évaluation que les prêteurs appliquent aux immeubles usagés et des tarifs courants des gestionnaires au Québec. Remplacez-les par les factures réelles de l'immeuble dès que vous les avez.</p>
+          <div class="enveloppe-tableau">
+            <table class="bareme">
+              <thead><tr><th scope="col">Poste</th><th scope="col">Défaut</th><th scope="col">Quand l'ajuster</th></tr></thead>
+              <tbody>
+                <tr><td>Vacance et mauvaises créances</td><td>3 à 4 %</td><td>Descendez à 2 % dans un secteur où l'inoccupation tourne autour de 1 %. Jamais zéro&nbsp;: même un marché tendu connaît des changements de locataires.</td></tr>
+                <tr><td>Entretien et réparations</td><td>610 $/porte/an</td><td>Montez nettement pour un immeuble d'avant 1970 ou visiblement négligé.</td></tr>
+                <tr><td>Conciergerie et aires communes</td><td>170 à 300 $/porte/an</td><td>Selon qu'il y a ou non des espaces communs chauffés, une buanderie, un terrain.</td></tr>
+                <tr><td>Frais de gestion</td><td>5 à 10 % des loyers</td><td>Le haut de la fourchette si vous achetez à distance. Inscrivez-les même si vous gérez vous-même&nbsp;: votre temps a une valeur, et un jour vous voudrez déléguer.</td></tr>
+                <tr><td>Réserve de remplacement</td><td>5 à 6 % du RBE</td><td>Toiture, fenêtres, balcons, chauffe-eau. Les banques ne l'exigent pas&nbsp;: c'est votre prudence qui l'ajoute, par-dessus l'entretien courant. C'est le poste silencieux qui coule les débutants.</td></tr>
+                <tr><td>Droits de mutation</td><td>Calculés</td><td>Barème provincial appliqué automatiquement au prix d'achat. Plusieurs villes ajoutent des tranches supérieures&nbsp;: vérifiez la vôtre et corrigez le montant à la main.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="carte">
+        <div class="bloc">
+          <h3>Trois choses qui faussent tout</h3>
+          <p style="margin-bottom:14px;">Elles reviennent dans presque chaque dossier qui tourne mal.</p>
+          <div class="avis" style="margin-bottom:11px;"><b>Le loyer « potentiel ».</b> Inscrivez le loyer réel inscrit au bail. Ce que le vendeur estime pouvoir charger n'existe pas encore, et au Québec la hausse se négocie avec un locataire en place ou se conteste au Tribunal administratif du logement.</div>
+          <div class="avis" style="margin-bottom:11px;"><b>Les taxes estimées.</b> Exigez le compte de taxes municipales et scolaires. Un écart de quelques milliers de dollars change le verdict.</div>
+          <div class="avis"><b>Le chauffage.</b> Si le propriétaire paie l'énergie d'un ou plusieurs logements, le montant s'inscrit en dépense et il fluctue chaque hiver. Vérifiez les compteurs avant de laisser cette ligne à zéro.</div>
+        </div>
+      </div>
+
+      <div class="carte">
+        <div class="bloc">
+          <h3>Comment le paiement hypothécaire est calculé</h3>
+          <p>Contrairement aux prêts américains, une hypothèque canadienne se compose <b>deux fois par an</b>, pas douze. Le taux mensuel effectif n'est donc pas le taux annuel divisé par douze.</p>
+          <div class="formule" style="font-family:var(--data); font-size:12px; background:var(--fond-creux); border-left:2px solid var(--filet-fort); padding:9px 12px; margin-top:12px; overflow-x:auto; color:var(--encre);">i = (1 + taux ÷ 2) <sup>1/6</sup> − 1</div>
+          <p style="margin-top:12px;">Sur un prêt de 260 000 $ à 4,80 % sur 25 ans, l'écart avec un calcul mensuel naïf dépasse 100 $ par année. L'outil applique la formule exacte.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== PAGE 2 : CALCULATEUR ==================== -->
+<section class="page actif" id="page-calcul" role="tabpanel">
+  <div class="barre-scenarios">
+    <div class="jeu-scenarios" id="jeu-scenarios"></div>
+    <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--encre-2);">
+      <input type="checkbox" id="bascule-comparaison" style="accent-color:var(--accent-vif);">
+      Comparer les trois
+    </label>
+    <span class="etiquette-douce" id="etat-sauvegarde">Sauvegardé automatiquement dans ce navigateur</span>
+  </div>
+
+  <div class="calc-grille" id="zone-calcul">
+    <div id="colonne-form"></div>
+    <div class="bord" id="colonne-bord"></div>
+  </div>
+
+  <div class="carte" id="zone-comparaison" hidden style="margin-top:6px;">
+    <div class="entete-bord"><h3>Les trois scénarios côte à côte</h3><span class="mini">Comparatif</span></div>
+    <div class="enveloppe-tableau" style="padding:12px 20px 20px;">
+      <table class="comparatif" id="table-comparaison"></table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== PAGE 3 : CHECKLIST ==================== -->
+<section class="page" id="page-checklist" role="tabpanel">
+  <div class="entete-page">
+    <div class="surtitre">Vérification préalable</div>
+    <h2>Ce que vous n'avez pas vérifié devient une condition à l'offre</h2>
+    <p>Cochez à mesure. La colonne de droite construit toute seule la liste des conditions à inscrire dans votre promesse d'achat, à partir de ce qui reste ouvert.</p>
+  </div>
+
+  <div class="check-grille">
+    <div class="carte" id="zone-checklist"></div>
+    <div style="display:grid; gap:22px; position:sticky; top:108px;">
+      <div class="carte">
+        <div class="entete-bord"><h3>Avancement</h3><span class="mini" id="pc-check">0 %</span></div>
+        <div style="padding:6px 20px 18px;">
+          <div class="jauge"><span id="jauge-check" style="width:0%"></span></div>
+          <p style="font-size:12.5px; color:var(--encre-2); margin:12px 0 0;" id="texte-check"></p>
+          <button class="btn" id="btn-decocher" style="margin-top:13px;">Décocher tout</button>
+        </div>
+      </div>
+      <div class="carte">
+        <div class="entete-bord"><h3>À inscrire dans l'offre</h3><span class="mini">Généré</span></div>
+        <div class="conditions" id="zone-conditions"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<dialog class="fenetre" id="fenetre">
+  <div class="fenetre-entete">
+    <h3 id="fenetre-titre"></h3>
+    <button class="btn" id="fenetre-fermer" type="button">Fermer</button>
+  </div>
+  <div class="fenetre-corps">
+    <p id="fenetre-texte"></p>
+    <textarea id="fenetre-zone" spellcheck="false" aria-label="Contenu de la sauvegarde"></textarea>
+    <p class="fenetre-message" id="fenetre-message"></p>
+    <div class="fenetre-actions" id="fenetre-actions"></div>
+  </div>
+</dialog>
+
+<footer class="pied">
+  <p><b>Outil de dégrossissage.</b> Il sert à écarter rapidement les dossiers qui ne tiennent pas et à chiffrer une position de négociation. Il ne remplace ni un courtier hypothécaire, ni un comptable, ni un inspecteur en bâtiment. Validez chaque poste avec les documents réels avant toute transaction.</p>
+  <p>Les deux immeubles d'exemple illustrent la méthode. Ce ne sont pas des recommandations d'achat. Les barèmes par défaut sont des points de départ, pas des vérités.</p>
+  <p>Vos données restent dans votre navigateur. Rien n'est envoyé nulle part. Utilisez « Exporter » pour en conserver une copie ou la transmettre.</p>
+</footer>
+
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ==========================================================
+     FORMULES
+     ========================================================== */
+
+  // Hypothèque canadienne : composition semestrielle.
+  const tauxMensuel = (tauxAnnuelPct) => {
+    const r = (tauxAnnuelPct || 0) / 100;
+    return Math.pow(1 + r / 2, 1 / 6) - 1;
+  };
+
+  const paiementMensuel = (capital, i, annees) => {
+    const n = (annees || 0) * 12;
+    if (capital <= 0 || n <= 0) return 0;
+    if (i <= 0) return capital / n;
+    return capital * i / (1 - Math.pow(1 + i, -n));
+  };
+
+  // Facteur annuel : dollars de service de la dette par dollar emprunté.
+  const facteurAnnuel = (i, annees) => {
+    const n = (annees || 0) * 12;
+    if (n <= 0) return 0;
+    if (i <= 0) return 12 / n;
+    return 12 * i / (1 - Math.pow(1 + i, -n));
+  };
+
+  // Solde après 12 paiements → capital remboursé la première année.
+  const capitalRembourseAn1 = (capital, i, annees) => {
+    if (capital <= 0) return 0;
+    const p = paiementMensuel(capital, i, annees);
+    if (i <= 0) return Math.min(p * 12, capital);
+    const f = Math.pow(1 + i, 12);
+    const solde = capital * f - p * ((f - 1) / i);
+    return Math.max(0, capital - solde);
+  };
+
+  // Droits de mutation — barème provincial du Québec.
+  const droitsMutation = (prix) => {
+    const s1 = 61500, s2 = 307800;
+    let d = 0;
+    d += Math.min(prix, s1) * 0.005;
+    if (prix > s1) d += (Math.min(prix, s2) - s1) * 0.010;
+    if (prix > s2) d += (prix - s2) * 0.015;
+    return d;
+  };
+
+  /* ==========================================================
+     MODÈLE
+     ========================================================== */
+
+  const scenarioVide = () => ({
+    nom: "Immeuble C",
+    description: "",
+    portes: 3, annee: 1960, prixDemande: 0, prixAchat: 0,
+    mdfPct: 20, taux: 5.25, amortissement: 25,
+    renos: 0, travauxFinances: false,
+    mutationAuto: true, mutation: 0, notaire: 1800, inspection: 1200, roulement: 5000,
+    loyers: new Array(12).fill(0),
+    autresRevenus: 0, vacancePct: 3,
+    taxesMun: 0, taxesScol: 0, assurances: 0, energie: 0,
+    entretienPorte: 610, gestionPct: 7, reservePct: 5,
+    terrain: 900, conciergePorte: 250, admin: 400, autresDep: 0
+  });
+
+  const EXEMPLES = [
+    Object.assign(scenarioVide(), {
+      nom: "Immeuble A",
+      description: "Triplex en brique, jumelé, secteur régional (exemple)",
+      portes: 3, annee: 1926, prixDemande: 325000, prixAchat: 325000,
+      mdfPct: 20, taux: 4.8, amortissement: 25,
+      notaire: 1800, inspection: 1200, renos: 15000, roulement: 5000,
+      loyers: [1200, 1200, 1150, 0, 0, 0],
+      autresRevenus: 0, vacancePct: 4,
+      taxesMun: 3975, taxesScol: 85, assurances: 2200, energie: 0,
+      entretienPorte: 610, gestionPct: 8, reservePct: 6,
+      terrain: 900, conciergePorte: 250, admin: 400, autresDep: 200
+    }),
+    Object.assign(scenarioVide(), {
+      nom: "Immeuble B",
+      description: "Triplex, marché urbain tendu (exemple)",
+      portes: 3, annee: 1925, prixDemande: 720000, prixAchat: 700000,
+      mdfPct: 20, taux: 4.8, amortissement: 25,
+      notaire: 1800, inspection: 1200, renos: 0, roulement: 5000,
+      loyers: [1850, 1250, 700, 0, 0, 0],
+      autresRevenus: 0, vacancePct: 3,
+      taxesMun: 4656, taxesScol: 287, assurances: 2400, energie: 0,
+      entretienPorte: 610, gestionPct: 6, reservePct: 5,
+      terrain: 900, conciergePorte: 250, admin: 400, autresDep: 200
+    }),
+    scenarioVide()
+  ];
+
+  /* ==========================================================
+     CALCUL
+     ========================================================== */
+
+  function calculer(s, stress) {
+    const st = stress || { taux: 0, vacance: 0, loyer: 0 };
+    const portes = Math.max(0, +s.portes || 0);
+
+    // Financement.
+    // Prêt achat-rénovation : la banque prête sur (prix + travaux) et applique la mise de
+    // fonds sur ce total. Les travaux ne sortent alors plus définitivement de la poche.
+    const prix = +s.prixAchat || 0;
+    const travaux = +s.renos || 0;
+    const finance = !!s.travauxFinances;
+    const baseFinancement = prix + (finance ? travaux : 0);
+    const mdf = baseFinancement * (+s.mdfPct || 0) / 100;
+    const pret = baseFinancement - mdf;
+    const tauxApplique = (+s.taux || 0) + st.taux;
+    const i = tauxMensuel(tauxApplique);
+    const paiement = paiementMensuel(pret, i, +s.amortissement || 0);
+    const serviceDette = paiement * 12;
+
+    // Capital investi. Les droits de mutation restent calculés sur le prix d'achat seul.
+    const mutation = s.mutationAuto ? droitsMutation(prix) : (+s.mutation || 0);
+    const travauxAVotreCharge = finance ? 0 : travaux;
+    const capitalInvesti = mdf + mutation + (+s.notaire || 0) + (+s.inspection || 0)
+                         + travauxAVotreCharge + (+s.roulement || 0);
+
+    // Revenus
+    const facteurLoyer = 1 + st.loyer / 100;
+    const loyersMensuels = (s.loyers || []).slice(0, Math.max(portes, 1))
+      .reduce((a, b) => a + (+b || 0), 0) * facteurLoyer;
+    const loyersAnnuels = loyersMensuels * 12;
+    const rbp = loyersAnnuels + (+s.autresRevenus || 0);
+    const vacancePct = Math.max(0, (+s.vacancePct || 0) + st.vacance);
+    const vacance = rbp * vacancePct / 100;
+    const rbe = rbp - vacance;
+
+    // Dépenses
+    const entretien = (+s.entretienPorte || 0) * portes;
+    const gestion = rbe * (+s.gestionPct || 0) / 100;
+    const reserve = rbe * (+s.reservePct || 0) / 100;
+    const conciergerie = (+s.conciergePorte || 0) * portes;
+    const depenses = (+s.taxesMun || 0) + (+s.taxesScol || 0) + (+s.assurances || 0)
+                   + (+s.energie || 0) + entretien + gestion + reserve
+                   + (+s.terrain || 0) + conciergerie + (+s.admin || 0) + (+s.autresDep || 0);
+    const ratioDep = rbe > 0 ? depenses / rbe * 100 : 0;
+
+    // Résultats
+    const rne = rbe - depenses;
+    const cashflow = rne - serviceDette;
+    const cashflowMois = cashflow / 12;
+    const parPorte = portes > 0 ? cashflowMois / portes : 0;
+
+    // Indicateurs
+    const tga = prix > 0 ? rne / prix * 100 : 0;
+    const mrb = rbp > 0 ? prix / rbp : 0;
+    const mrn = rne > 0 ? prix / rne : 0;
+    const rcd = serviceDette > 0 ? rne / serviceDette : (rne > 0 ? Infinity : 0);
+    const coc = capitalInvesti > 0 ? cashflow / capitalInvesti * 100 : 0;
+    const capitalAn1 = capitalRembourseAn1(pret, i, +s.amortissement || 0);
+    const rendementTotal = capitalInvesti > 0 ? (cashflow + capitalAn1) / capitalInvesti * 100 : 0;
+
+    // Points de bascule
+    const fa = facteurAnnuel(i, +s.amortissement || 0);
+    const ratioPret = 1 - (+s.mdfPct || 0) / 100;
+    const pretMax = fa > 0 ? Math.max(0, rne / fa) : 0;
+    // Les travaux financés occupent une part du prêt : le prix payable pour l'immeuble
+    // se réduit d'autant.
+    const travauxDansPret = finance ? travaux : 0;
+    const prixNul = ratioPret > 0 ? Math.max(0, pretMax / ratioPret - travauxDansPret) : 0;
+    const ecartPrix = prixNul - prix;
+    const mdfNulle = Math.max(0, baseFinancement - pretMax);
+    const mdfNullePct = baseFinancement > 0 ? mdfNulle / baseFinancement * 100 : 0;
+    const pretRcd = fa > 0 ? Math.max(0, (rne / 1.20) / fa) : 0;
+    const prixRcd = ratioPret > 0 ? Math.max(0, pretRcd / ratioPret - travauxDansPret) : 0;
+
+    return {
+      portes, prix, travaux, finance, baseFinancement, travauxAVotreCharge,
+      mdf, pret, i, tauxApplique, paiement, serviceDette,
+      mutation, capitalInvesti,
+      loyersMensuels, loyersAnnuels, rbp, vacancePct, vacance, rbe,
+      entretien, gestion, reserve, conciergerie, depenses, ratioDep,
+      rne, cashflow, cashflowMois, parPorte,
+      tga, mrb, mrn, rcd, coc, capitalAn1, rendementTotal,
+      pretMax, prixNul, ecartPrix, mdfNulle, mdfNullePct, prixRcd
+    };
+  }
+
+  /* ==========================================================
+     VERDICTS
+     ========================================================== */
+
+  const RANG = { bon: 0, limite: 1, alerte: 2 };
+  const GLYPHE = { bon: "✓", limite: "!", alerte: "✕", attente: "→" };
+
+  function verdicts(r) {
+    // Tant que le prix et les loyers ne sont pas saisis, aucun verdict n'a de sens.
+    if (r.prix <= 0 || r.rbp <= 0) {
+      const attente = {
+        n: "attente", t: "En attente de vos chiffres",
+        d: "Entrez au minimum le prix d'achat envisagé et les loyers réels des baux. Le verdict apparaîtra dès que les deux seront là."
+      };
+      return { cf: attente, fin: attente, dep: attente, global: attente };
+    }
+
+    let cf;
+    if (r.parPorte >= 75) cf = { n: "bon", t: "Solide", c: "Solide", d: "Au moins 75 $ par porte chaque mois. C'est la marge qui absorbe une mauvaise année." };
+    else if (r.parPorte >= 0) cf = { n: "limite", t: "Trop juste", c: "Juste", d: "Positif, mais sous 75 $ par porte une seule surprise efface l'année." };
+    else cf = { n: "alerte", t: "Négatif", c: "Négatif", d: "L'immeuble vous coûte de l'argent tous les mois, en plus de votre mise de fonds." };
+
+    let fin;
+    if (!isFinite(r.rcd) || r.rcd >= 1.20) fin = { n: "bon", t: "Le prêteur suivra", c: "Passe", d: "Le revenu net couvre le service de la dette avec la marge exigée." };
+    else if (r.rcd >= 1.00) fin = { n: "limite", t: "Ça va coincer", c: "Serré", d: "Sous 1,20, attendez-vous à devoir augmenter la mise de fonds ou à faire baisser le prix." };
+    else fin = { n: "alerte", t: "Refus probable", c: "Refus", d: "Le revenu net ne couvre même pas l'hypothèque. Aucun prêteur ne suit à ce prix." };
+
+    let dep;
+    if (r.rbe <= 0) dep = { n: "limite", t: "Revenus à saisir", c: "À saisir", d: "Entrez les loyers réels pour que la structure de dépenses ait un sens." };
+    else if (r.ratioDep > 50) dep = { n: "alerte", t: "Dépenses lourdes", c: "Lourd", d: "Plus de la moitié du revenu part en exploitation. Cherchez pourquoi, ou négociez." };
+    else if (r.ratioDep < 30) dep = { n: "limite", t: "Suspect à la baisse", c: "Suspect", d: "Sous 30 %, un poste manque presque toujours. Reprenez la liste des dépenses." };
+    else dep = { n: "bon", t: "Structure normale", c: "Normal", d: "Le ratio se tient dans la fourchette attendue pour un immeuble usagé." };
+
+    const pire = [cf, fin, dep].reduce((a, b) => RANG[b.n] > RANG[a.n] ? b : a);
+    let global;
+    if (pire.n === "bon") global = { n: "bon", t: "Le dossier tient", d: "Les trois axes passent. Validez maintenant chaque chiffre avec les documents réels." };
+    else if (pire.n === "limite") global = { n: "limite", t: "À négocier", d: "Le dossier ne s'écroule pas, mais un axe est trop mince pour être laissé tel quel." };
+    else global = { n: "alerte", t: "Ne passe pas", d: "Un axe est en échec. Aux conditions actuelles, cet immeuble n'est pas achetable." };
+
+    return { cf, fin, dep, global };
+  }
+
+  /* ==========================================================
+     FORMATAGE
+     ========================================================== */
+
+  const nfArgent = new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
+  const nfArgent2 = new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const nfNombre = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 0 });
+
+  const arg = (v) => nfArgent.format(Math.round(v || 0));
+  const arg2 = (v) => nfArgent2.format(v || 0);
+  const pct = (v, d) => (v || 0).toFixed(d === undefined ? 1 : d).replace(".", ",") + " %";
+  const mult = (v) => (isFinite(v) ? (v || 0).toFixed(2).replace(".", ",") : "—") + "×";
+  const ratio = (v) => isFinite(v) ? (v || 0).toFixed(2).replace(".", ",") : "∞";
+  const neg = (v) => v < 0 ? " negatif" : "";
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  /* ==========================================================
+     ÉTAT
+     ========================================================== */
+
+  // Complète un scénario venu du stockage ou d'un import : champs manquants, tableau de loyers court.
+  const normaliser = (s) => {
+    const base = Object.assign(scenarioVide(), s || {});
+    const loyers = new Array(12).fill(0);
+    (Array.isArray(s && s.loyers) ? s.loyers : []).slice(0, 12).forEach((v, n) => loyers[n] = +v || 0);
+    base.loyers = loyers;
+    return base;
+  };
+
+  const CLE = "analyse-rentabilite-v1";
+  let etat = {
+    scenarios: JSON.parse(JSON.stringify(EXEMPLES)),
+    actif: 0, // on ouvre sur un exemple rempli : l'outil se comprend en le voyant fonctionner
+
+    coches: {},
+    stress: { taux: 0, vacance: 0, loyer: 0 },
+    comparer: false
+  };
+
+  function charger() {
+    try {
+      const brut = localStorage.getItem(CLE);
+      if (!brut) return;
+      const d = JSON.parse(brut);
+      if (d && Array.isArray(d.scenarios) && d.scenarios.length === 3) {
+        etat.scenarios = d.scenarios.map(normaliser);
+        // Anciens libellés d'une version précédente : renommés sans toucher aux chiffres saisis.
+        const avant = ["Exemple — région", "Exemple — grand centre", "Votre projet"];
+        const apres = ["Immeuble A", "Immeuble B", "Immeuble C"];
+        etat.scenarios.forEach((s, n) => { if (avant.includes(s.nom)) s.nom = apres[n]; });
+        etat.actif = Number.isInteger(d.actif) ? d.actif : 2;
+        etat.coches = d.coches || {};
+        etat.comparer = !!d.comparer;
+      }
+    } catch (e) { /* stockage indisponible : on continue en mémoire */ }
+  }
+
+  let minuterie = null;
+  function sauver() {
+    clearTimeout(minuterie);
+    minuterie = setTimeout(() => {
+      try {
+        localStorage.setItem(CLE, JSON.stringify({
+          scenarios: etat.scenarios, actif: etat.actif, coches: etat.coches, comparer: etat.comparer
+        }));
+        const el = document.getElementById("etat-sauvegarde");
+        if (el) {
+          el.textContent = "Enregistré à " + new Date().toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" });
+        }
+      } catch (e) {
+        const el = document.getElementById("etat-sauvegarde");
+        if (el) el.textContent = "Sauvegarde impossible dans ce navigateur — exportez vos données";
+      }
+    }, 400);
+  }
+
+  /* ==========================================================
+     LEXIQUE
+     ========================================================== */
+
+  const LEXIQUE = [
+    { sigle: "CF/porte", nom: "Cashflow par porte, par mois", formule: "(RNE − service de la dette) ÷ 12 ÷ nombre de logements",
+      corps: ["Ce qui vous reste réellement en poche chaque mois, par logement, une fois absolument tout payé.",
+              "<span class='cible'>Visez 75 $ et plus.</span> Sous ce seuil, un chauffe-eau qui lâche ou un mois de vacance efface votre année. En bas de zéro, vous financez l'immeuble de votre poche tous les mois."] },
+    { sigle: "RNE", nom: "Revenu net d'exploitation", formule: "revenus bruts effectifs − dépenses d'exploitation",
+      corps: ["Ce que l'immeuble génère avant l'hypothèque. C'est le chiffre roi&nbsp;: il ne dépend ni de votre financement ni de votre situation personnelle, uniquement de l'immeuble.",
+              "Tous les autres indicateurs en découlent. Une erreur ici se propage partout."] },
+    { sigle: "TGA", nom: "Taux de capitalisation (cap rate)", formule: "RNE ÷ prix d'achat",
+      corps: ["Le rendement de l'immeuble lui-même, financement mis de côté. Il sert à comparer deux immeubles entre eux et à vous situer par rapport à votre marché local.",
+              "Il n'y a pas de bon TGA dans l'absolu&nbsp;: 7 % en région et 4 % dans un grand centre peuvent tous les deux être normaux. Ce qui compte, c'est l'écart avec les ventes comparables du secteur."] },
+    { sigle: "RCD", nom: "Ratio de couverture de la dette", formule: "RNE ÷ service annuel de la dette",
+      corps: ["C'est le premier chiffre que votre prêteur regarde, souvent avant même votre dossier personnel.",
+              "<span class='cible'>Sous 1,20, la plupart des institutions hésitent ou refusent.</span> À 1,00, le revenu net paie l'hypothèque au dollar près, sans aucune marge. En dessous, l'immeuble ne se porte plus lui-même."] },
+    { sigle: "MRB", nom: "Multiplicateur de revenu brut", formule: "prix d'achat ÷ revenus bruts annuels",
+      corps: ["Un raccourci de tri, jamais une décision. Plus il est bas, moins l'immeuble est cher par rapport à ce qu'il encaisse.",
+              "Il ignore complètement les dépenses, donc deux immeubles au même MRB peuvent avoir des rentabilités opposées. Utilisez-le pour écarter vite, pas pour conclure."] },
+    { sigle: "Cash-on-cash", nom: "Rendement sur mise de fonds", formule: "cashflow annuel ÷ capital réellement investi",
+      corps: ["Le vrai rendement de <span class='cible'>votre</span> argent&nbsp;: pas seulement la mise de fonds, mais tout ce qui sort de vos poches — droits de mutation, notaire, inspection, rénovations de départ, fonds de roulement.",
+              "C'est le chiffre à comparer avec ce que la même somme rapporterait ailleurs."] },
+    { sigle: "Bascule", nom: "Prix pour un cashflow nul", formule: "prêt que le RNE peut porter ÷ (1 − mise de fonds %)",
+      corps: ["Le prix maximal au-delà duquel l'immeuble commence à vous coûter de l'argent chaque mois, à mise de fonds et taux inchangés.",
+              "Attention&nbsp;: <span class='cible'>c'est une limite, pas une cible.</span> À ce prix exact, le ratio de couverture tombe à 1,00 et plus aucun prêteur ne suit."] },
+    { sigle: "Plafond", nom: "Prix pour un RCD de 1,20", formule: "(RNE ÷ 1,20) ÷ facteur annuel ÷ (1 − mise de fonds %)",
+      corps: ["Le plafond bancaire réel, nettement plus bas que celui du cashflow nul. Au-dessus de ce prix, votre ratio de couverture passe sous le seuil exigé.",
+              "<span class='cible'>C'est ce chiffre-là qu'il faut viser dans une négociation</span>, pas celui du cashflow nul."] },
+    { sigle: "MDF nulle", nom: "Mise de fonds pour un cashflow nul", formule: "prix d'achat − prêt que le RNE peut porter",
+      corps: ["L'argent qu'il faudrait mettre, au prix que vous envisagez, pour que l'immeuble s'autofinance.",
+              "Si ce montant dépasse largement ce que vous aviez prévu, le problème est le prix par rapport aux revenus, pas votre capacité financière. Zéro signifie que l'immeuble se paie tout seul."] },
+    { sigle: "Achat-réno", nom: "Travaux financés dans l'hypothèque", formule: "prêt = (prix d'achat + travaux) − mise de fonds",
+      corps: ["Les prêteurs canadiens acceptent d'inclure des rénovations dans le prêt d'achat. La banque prête alors sur le prix <span class='cible'>plus</span> le coût des travaux, et votre mise de fonds s'applique sur ce total.",
+              "Ce que ça change dans le calcul&nbsp;: votre mise de fonds monte, votre prêt monte, donc votre paiement mensuel monte et votre cashflow baisse. En échange, les travaux ne sortent plus définitivement de vos poches, et votre capital investi diminue. Regardez le rendement sur mise de fonds pour trancher&nbsp;: c'est lui qui arbitre les deux effets.",
+              "<span class='cible'>Le piège&nbsp;: vous devez avancer l'argent.</span> Le prêteur retient sa portion et ne la verse qu'une fois les travaux terminés et inspectés. Prévoyez la liquidité, ou une marge de crédit, pour tenir l'intervalle.",
+              "Exigez des soumissions fermes d'un entrepreneur avant de faire votre offre, et ajoutez 15 à 20 % d'imprévus. La banque financera le montant soumis, pas les dépassements."] },
+    { sigle: "Rdt total", nom: "Rendement total année 1", formule: "(cashflow + capital remboursé) ÷ capital investi",
+      corps: ["Le cashflow plus la portion d'hypothèque que vos locataires remboursent pour vous.",
+              "Ce n'est pas de l'argent liquide, mais c'est de l'enrichissement réel. C'est souvent ici qu'un immeuble « ordinaire » devient intéressant."] }
+  ];
+
+  function rendreLexique() {
+    document.getElementById("lexique").innerHTML = LEXIQUE.map(t => `
+      <details class="terme">
+        <summary><span class="sigle">${esc(t.sigle)}</span>${esc(t.nom)}</summary>
+        <div class="corps">
+          <div class="formule">${t.formule}</div>
+          ${t.corps.map(p => `<p>${p}</p>`).join("")}
+        </div>
+      </details>`).join("");
+  }
+
+  /* ==========================================================
+     FORMULAIRE
+     ========================================================== */
+
+  const champ = (cle, lib, opts) => Object.assign({ k: cle, l: lib, type: "argent" }, opts || {});
+
+  function structureFormulaire(s) {
+    const nbLoyers = Math.min(12, Math.max(1, +s.portes || 1));
+    const loyers = [];
+    for (let n = 0; n < nbLoyers; n++) {
+      loyers.push(champ("loyers." + n, "Loyer mensuel — logement " + (n + 1), {
+        note: n === 0 ? "Le loyer réel inscrit au bail, jamais le loyer « potentiel » du vendeur." : ""
+      }));
+    }
+
+    return [
+      { num: "1", titre: "Identification", resume: r => r.portes + (r.portes > 1 ? " logements" : " logement"), champs: [
+        champ("description", "Description", { type: "texte", note: "Pour vous retrouver entre plusieurs dossiers." }),
+        champ("portes", "Nombre de logements", { type: "entier", note: "Ajuste le nombre de loyers à saisir, jusqu'à douze. Au-delà, regroupez les loyers restants sur la dernière ligne." }),
+        champ("annee", "Année de construction", { type: "entier", note: "Avant 1970, montez l'entretien et la réserve de remplacement." }),
+        champ("prixDemande", "Prix demandé", { note: "Pour mémoire. N'entre dans aucun calcul." }),
+        champ("prixAchat", "Prix d'achat envisagé", { note: "C'est ce chiffre qui alimente tous les calculs." })
+      ]},
+      { num: "2", titre: "Financement", resume: r => pct(r.tauxApplique, 2) + " · " + arg(r.paiement) + "/mois", champs: [
+        champ("renos", "Travaux de rénovation à prévoir", { note: "Exigez des soumissions fermes avant l'offre, plus 15 à 20 % d'imprévus." }),
+        champ("travauxFinances", "Inclure les travaux dans l'hypothèque", { type: "bascule", note: s.travauxFinances
+          ? "Prêt achat-rénovation : la banque prête sur le prix plus les travaux, et votre mise de fonds s'applique sur ce total. Attention, vous devez avancer l'argent des travaux : le prêteur ne débloque sa part qu'une fois les travaux terminés et inspectés."
+          : "Cochez si la banque finance les travaux avec l'achat. Sinon, ils sortent de votre poche et s'ajoutent au capital investi." }),
+        ...(s.travauxFinances ? [{ calc: "baseFinancement", l: "Base de financement (prix + travaux)" }] : []),
+        champ("mdfPct", "Mise de fonds", { type: "pourcent", note: "20 % minimum si vous n'habitez pas l'immeuble. De 5 à 10 % possible avec la SCHL si vous occupez un logement." }),
+        { calc: "mdf", l: "Mise de fonds ($)" },
+        { calc: "pret", l: "Montant du prêt" },
+        champ("taux", "Taux d'intérêt annuel", { type: "pourcent2", note: "Votre préqualification donnera le vrai chiffre. Testez aussi un taux plus haut avec les curseurs de résistance." }),
+        champ("amortissement", "Amortissement", { type: "entier", unite: "ans", note: "25 ans est la norme. 30 ans améliore le cashflow mais coûte beaucoup plus cher au total." }),
+        { calc: "paiement", l: "Paiement hypothécaire mensuel", fmt: arg2 },
+        { calc: "serviceDette", l: "Service de la dette (annuel)", total: true }
+      ]},
+      { num: "3", titre: "Capital réellement investi", resume: r => arg(r.capitalInvesti), champs: [
+        { calc: "mdf", l: "Mise de fonds" },
+        champ("mutation", "Droits de mutation", { auto: "mutationAuto", note: "Barème provincial calculé sur le prix d'achat. Plusieurs villes ajoutent des tranches supérieures : décochez pour saisir le montant réel." }),
+        champ("notaire", "Frais de notaire"),
+        champ("inspection", "Inspection préachat et évaluation", { note: "Ne coupez jamais ici. C'est l'assurance la moins chère du projet." }),
+        { calc: "travauxAVotreCharge", l: "Travaux à votre charge",
+          note: s.travauxFinances
+            ? "À zéro : les travaux sont dans l'hypothèque. Gardez tout de même de quoi les avancer avant le remboursement du prêteur."
+            : "Les travaux saisis plus haut, payés de votre poche." },
+        champ("roulement", "Fonds de roulement", { note: "Le coussin pour la première urgence. Ajoutez-y la TPS et la TVQ s'il y a une portion commerciale." }),
+        { calc: "capitalInvesti", l: "Total du capital investi", total: true }
+      ]},
+      { num: "4", titre: "Revenus", resume: r => arg(r.rbe) + " net", champs: [
+        ...loyers,
+        { calc: "loyersMensuels", l: "Total des loyers mensuels" },
+        { calc: "loyersAnnuels", l: "Revenus de loyers annuels" },
+        champ("autresRevenus", "Autres revenus annuels", { note: "Stationnement, buanderie, rangement, recharge de véhicule." }),
+        { calc: "rbp", l: "Revenus bruts potentiels (RBP)" },
+        champ("vacancePct", "Vacance et mauvaises créances", { type: "pourcent", note: "Jamais zéro. Même un marché tendu connaît des changements de locataires." }),
+        { calc: "vacance", l: "Vacance et mauvaises créances ($)" },
+        { calc: "rbe", l: "Revenus bruts effectifs (RBE)", total: true }
+      ]},
+      { num: "5", titre: "Dépenses d'exploitation", resume: r => arg(r.depenses) + " · " + pct(r.ratioDep, 0), champs: [
+        champ("taxesMun", "Taxes municipales", { note: "Exigez le compte de taxes réel. Jamais une estimation du vendeur." }),
+        champ("taxesScol", "Taxes scolaires"),
+        champ("assurances", "Assurances", { note: "Demandez une vraie soumission : plusieurs assureurs refusent la plomberie galvanisée ou les panneaux à fusibles." }),
+        champ("energie", "Énergie payée par le propriétaire", { note: "Zéro seulement si chaque logement a son compteur et paie son chauffage. Vérifiez-le." }),
+        champ("entretienPorte", "Entretien et réparations", { unite: "$/porte", note: "Norme d'évaluation bancaire pour un immeuble usagé : environ 610 $ par logement par année." }),
+        { calc: "entretien", l: "Entretien et réparations ($)" },
+        champ("gestionPct", "Frais de gestion", { type: "pourcent", note: "De 5 à 10 % des loyers perçus pour une gestion complète. Inscrivez-les même si vous gérez vous-même." }),
+        { calc: "gestion", l: "Frais de gestion ($)" },
+        champ("reservePct", "Réserve de remplacement", { type: "pourcent", note: "Toiture, fenêtres, balcons, chauffe-eau. Les banques ne l'exigent pas : c'est votre prudence qui l'ajoute." }),
+        { calc: "reserve", l: "Réserve de remplacement ($)" },
+        champ("terrain", "Déneigement, pelouse, terrain"),
+        champ("conciergePorte", "Conciergerie et aires communes", { unite: "$/porte", note: "Barème d'évaluation bancaire : de 170 à 300 $ par logement par année." }),
+        { calc: "conciergerie", l: "Conciergerie ($)" },
+        champ("admin", "Comptabilité, frais juridiques, permis"),
+        champ("autresDep", "Autres dépenses"),
+        { calc: "depenses", l: "Total des dépenses d'exploitation", total: true },
+        { calc: "ratioDep", l: "Ratio dépenses / RBE", fmt: v => pct(v, 1), note: "Cible : de 35 à 45 %. Au-delà de 50 %, cherchez pourquoi ou négociez." }
+      ]}
+    ];
+  }
+
+  function lireValeur(s, cle) {
+    if (cle.startsWith("loyers.")) return s.loyers[+cle.split(".")[1]] || 0;
+    return s[cle];
+  }
+  function ecrireValeur(s, cle, v) {
+    if (cle.startsWith("loyers.")) { s.loyers[+cle.split(".")[1]] = v; return; }
+    s[cle] = v;
+  }
+
+  function rendreFormulaire() {
+    const s = etat.scenarios[etat.actif];
+    const r = calculer(s);
+    const sections = structureFormulaire(s);
+    const ouvertes = new Set(
+      [...document.querySelectorAll(".section-form")].map((d, n) => d.open ? n : -1).filter(n => n >= 0)
+    );
+    const premier = document.querySelector(".section-form") === null;
+
+    document.getElementById("colonne-form").innerHTML = sections.map((sec, n) => {
+      const lignes = sec.champs.map(c => {
+        if (c.calc) {
+          const v = r[c.calc];
+          const fmt = c.fmt || arg;
+          return `<div class="ligne calculee${c.total ? " total" : ""}">
+            <div class="intitule"><span class="lib">${esc(c.l)}</span>${c.note ? `<span class="note">${esc(c.note)}</span>` : ""}</div>
+            <div class="valeur${neg(v)}">${fmt(v)}</div>
+          </div>`;
+        }
+        // Case oui / non : elle commande l'affichage des lignes qui en dépendent.
+        if (c.type === "bascule") {
+          const actif = !!s[c.k];
+          return `<div class="ligne bascule-champ${actif ? " engagee" : ""}">
+            <div class="intitule">
+              <span class="lib">${esc(c.l)}</span>
+              ${c.note ? `<span class="note">${esc(c.note)}</span>` : ""}
+            </div>
+            <div class="zone-champ">
+              <label class="interrupteur">
+                <input type="checkbox" data-bascule="${c.k}"${actif ? " checked" : ""}>
+                <span>${actif ? "Oui" : "Non"}</span>
+              </label>
+            </div>
+          </div>`;
+        }
+
+        const val = lireValeur(s, c.k);
+        const unite = c.unite || (c.type === "pourcent" || c.type === "pourcent2" ? "%" : c.type === "texte" || c.type === "entier" ? "" : "$");
+        let attrs = 'type="number" step="1"';
+        if (c.type === "texte") attrs = 'type="text"';
+        else if (c.type === "pourcent") attrs = 'type="number" step="0.5" min="0"';
+        else if (c.type === "pourcent2") attrs = 'type="number" step="0.05" min="0"';
+        else if (c.type === "entier") attrs = 'type="number" step="1" min="0"';
+        else attrs = 'type="number" step="50" min="0"';
+
+        const affiche = c.auto && s[c.auto] ? Math.round(r.mutation) : val;
+        const desactive = c.auto && s[c.auto] ? " disabled" : "";
+
+        return `<div class="ligne${c.type === "texte" ? " ample" : ""}">
+          <div class="intitule">
+            <span class="lib">${esc(c.l)}</span>
+            ${c.auto ? `<label class="note" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" data-auto="${c.auto}"${s[c.auto] ? " checked" : ""} style="accent-color:var(--accent-vif);width:13px;height:13px;">
+                Calculé sur le prix d'achat</label>` : ""}
+            ${c.note ? `<span class="note">${esc(c.note)}</span>` : ""}
+          </div>
+          <div class="zone-champ">
+            <input class="saisie" ${attrs} data-cle="${c.k}" value="${esc(affiche === 0 && c.type !== "texte" ? 0 : (affiche ?? ""))}"${desactive}>
+            ${unite ? `<span class="unite">${unite}</span>` : ""}
+          </div>
+        </div>`;
+      }).join("");
+
+      const ouvert = premier ? (n < 5) : ouvertes.has(n);
+      return `<details class="carte section-form"${ouvert ? " open" : ""}>
+        <summary><span class="num">${sec.num}</span><h3>${esc(sec.titre)}</h3><span class="resume">${sec.resume(r)}</span></summary>
+        <div class="corps-section">${lignes}</div>
+      </details>`;
+    }).join("");
+  }
+
+  /* ==========================================================
+     TABLEAU DE BORD
+     ========================================================== */
+
+  function rendreBord() {
+    const s = etat.scenarios[etat.actif];
+    const r = calculer(s);
+    const v = verdicts(r);
+    const rs = calculer(s, etat.stress);
+    const delta = rs.parPorte - r.parPorte;
+
+    // Répartition du RBE
+    const base = Math.max(r.rbe, r.depenses + r.serviceDette, 1);
+    const pDep = r.depenses / base * 100;
+    const pDette = r.serviceDette / base * 100;
+    const pReste = Math.max(0, r.cashflow) / base * 100;
+    const pDeficit = Math.max(0, -r.cashflow) / base * 100;
+
+    const seg = (cle, largeur, titre) => largeur > 0.4
+      ? `<div class="segment" data-cle="${cle}" style="width:${largeur}%" title="${esc(titre)}"></div>` : "";
+
+    const ligneLegende = (couleur, nom, valeur, part) => `
+      <div class="item-legende">
+        <span class="puce" style="background:${couleur}"></span>
+        <span>${nom}</span>
+        <span class="val">${aff(valeur)}</span>
+        <span class="pc">${vide ? "" : pct(part, 0)}</span>
+      </div>`;
+
+    const jeton = (etat_) => etat_.n === "attente" ? ""
+      : `<span class="jeton ${etat_.n}">${GLYPHE[etat_.n]} ${esc(etat_.c || etat_.t)}</span>`;
+
+    // Tant que le dossier est vide, aucun chiffre dérivé n'est affiché :
+    // un « −48,5 % » sur un formulaire vierge est faux, pas informatif.
+    const vide = v.global.n === "attente";
+    const aff = (valeur, formateur) => vide ? "—" : (formateur || arg)(valeur);
+    const classeSigne = (valeur) => vide ? "" : neg(valeur);
+
+    document.getElementById("colonne-bord").innerHTML = `
+      <div class="carte">
+        <div class="verdict ${v.global.n}">
+          <div class="etat"><span class="glyphe">${GLYPHE[v.global.n]}</span>${esc(v.global.t)}</div>
+          <div class="explication">${esc(v.global.d)}</div>
+        </div>
+
+        <div class="entete-bord"><h3>Cashflow par porte</h3><span class="mini">Par mois</span></div>
+        <div class="heros">
+          <div class="montant ${v.cf.n}">${vide ? "—" : arg2(r.parPorte)}</div>
+          <div class="sous">${vide ? "Le calcul démarre dès que le prix d'achat et les loyers sont saisis." : esc(v.cf.d)}</div>
+        </div>
+
+        <div class="tuiles">
+          <div class="tuile">
+            <div class="nom">RCD ${jeton(v.fin)}</div>
+            <div class="chiffre">${aff(r.rcd, ratio)}</div>
+            <div class="repere">Seuil bancaire : 1,20</div>
+          </div>
+          <div class="tuile">
+            <div class="nom">TGA — cap rate</div>
+            <div class="chiffre">${aff(r.tga, pct)}</div>
+            <div class="repere">À comparer au marché local</div>
+          </div>
+          <div class="tuile">
+            <div class="nom">Cash-on-cash</div>
+            <div class="chiffre${classeSigne(r.coc)}">${aff(r.coc, pct)}</div>
+            <div class="repere">${vide ? "Sur le capital réellement investi" : "Sur " + arg(r.capitalInvesti) + " investis"}</div>
+          </div>
+          <div class="tuile">
+            <div class="nom">Rendement total an 1</div>
+            <div class="chiffre${classeSigne(r.rendementTotal)}">${aff(r.rendementTotal, pct)}</div>
+            <div class="repere">${vide ? "Cashflow plus capital remboursé" : "Dont " + arg(r.capitalAn1) + " de capital"}</div>
+          </div>
+          <div class="tuile">
+            <div class="nom">MRB</div>
+            <div class="chiffre">${aff(r.mrb, mult)}</div>
+            <div class="repere">Prix ÷ revenus bruts</div>
+          </div>
+          <div class="tuile">
+            <div class="nom">Dépenses / RBE ${jeton(v.dep)}</div>
+            <div class="chiffre">${aff(r.ratioDep, v => pct(v, 0))}</div>
+            <div class="repere">Fourchette normale : 35 à 45 %</div>
+          </div>
+        </div>
+
+        <div class="repartition">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">
+            <h3 style="font-size:14px;">Où va le revenu effectif</h3>
+            <span class="mini" style="font-family:var(--data);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--encre-3);">${aff(r.rbe)}</span>
+          </div>
+          <div class="barre-rep" role="img" aria-label="Répartition du revenu brut effectif entre dépenses d'exploitation, service de la dette et cashflow">
+            ${vide ? "" : seg("depenses", pDep, "Dépenses d'exploitation")}
+            ${vide ? "" : seg("dette", pDette, "Service de la dette")}
+            ${vide ? "" : seg("reste", pReste, "Cashflow")}
+            ${vide ? "" : seg("deficit", pDeficit, "Déficit")}
+          </div>
+          <div class="legende">
+            ${ligneLegende("var(--serie-depenses)", "Dépenses d'exploitation", r.depenses, pDep)}
+            ${ligneLegende("var(--serie-dette)", "Service de la dette", r.serviceDette, pDette)}
+            ${vide || r.cashflow >= 0
+              ? ligneLegende("var(--serie-reste)", "Cashflow avant impôt", r.cashflow, pReste)
+              : ligneLegende("var(--alerte)", "Déficit à combler", r.cashflow, -pDeficit)}
+          </div>
+        </div>
+      </div>
+
+      <div class="carte">
+        <div class="entete-bord"><h3>Points de bascule</h3><span class="mini">Négociation</span></div>
+        <div class="bascules">
+          <div class="bascule majeure">
+            <span class="quoi">Prix pour un RCD de 1,20<br><span style="font-weight:400;font-size:11.5px;color:var(--encre-3);">Le plafond bancaire. Votre vraie cible.</span></span>
+            <span class="cb">${aff(r.prixRcd)}</span>
+          </div>
+          <div class="bascule">
+            <span class="quoi">Prix pour un cashflow nul</span>
+            <span class="cb">${aff(r.prixNul)}</span>
+          </div>
+          <div class="bascule">
+            <span class="quoi">Écart avec votre prix</span>
+            <span class="cb${classeSigne(r.ecartPrix)}">${vide ? "—" : (r.ecartPrix >= 0 ? "+" : "") + arg(r.ecartPrix)}</span>
+          </div>
+          <div class="bascule">
+            <span class="quoi">Prêt maximal supportable</span>
+            <span class="cb">${aff(r.pretMax)}</span>
+          </div>
+          <div class="bascule">
+            <span class="quoi">Mise de fonds pour un cashflow nul</span>
+            <span class="cb">${aff(r.mdfNulle)}${vide ? "" : ` <span style="color:var(--encre-3);font-size:12px;">(${pct(r.mdfNullePct, 0)})</span>`}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="carte">
+        <div class="entete-bord"><h3>Test de résistance</h3><button class="btn" id="btn-stress-zero" style="padding:3px 9px;font-size:11.5px;">Remettre à zéro</button></div>
+        <div class="resistance">
+          <p style="font-size:12.5px;color:var(--encre-2);margin:0;">Poussez les curseurs jusqu'à ce que le dossier casse. Un immeuble qui ne survit pas à deux points de taux au renouvellement n'est pas un bon dossier.</p>
+
+          <div class="curseur">
+            <div class="haut"><span class="t">Taux d'intérêt</span><span class="v">${etat.stress.taux >= 0 ? "+" : ""}${etat.stress.taux.toFixed(2).replace(".", ",")} pt → ${pct(rs.tauxApplique, 2)}</span></div>
+            <input type="range" id="st-taux" min="0" max="5" step="0.25" value="${etat.stress.taux}">
+          </div>
+          <div class="curseur">
+            <div class="haut"><span class="t">Vacance</span><span class="v">+${etat.stress.vacance} pt → ${pct(rs.vacancePct, 0)}</span></div>
+            <input type="range" id="st-vacance" min="0" max="20" step="1" value="${etat.stress.vacance}">
+          </div>
+          <div class="curseur">
+            <div class="haut"><span class="t">Baisse des loyers</span><span class="v">${etat.stress.loyer} %</span></div>
+            <input type="range" id="st-loyer" min="-30" max="0" step="1" value="${etat.stress.loyer}">
+          </div>
+
+          <div class="resultat-stress">
+            <span class="t">Cashflow par porte sous tension</span>
+            <span class="v" style="color:${vide ? "var(--encre-3)" : rs.parPorte >= 75 ? "var(--bon)" : rs.parPorte >= 0 ? "var(--limite)" : "var(--alerte)"}">${vide ? "—" : arg2(rs.parPorte)}</span>
+            <span class="d" style="width:100%;text-align:right;">${vide ? "En attente des revenus et du prix d'achat"
+              : delta === 0 ? "Aucune tension appliquée"
+              : (delta < 0 ? "−" : "+") + arg2(Math.abs(delta)) + " par porte · RCD " + ratio(rs.rcd)}</span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  /* ==========================================================
+     COMPARAISON
+     ========================================================== */
+
+  function rendreComparaison() {
+    const zone = document.getElementById("zone-comparaison");
+    zone.hidden = !etat.comparer;
+    if (!etat.comparer) return;
+
+    const res = etat.scenarios.map(s => ({ s, r: calculer(s), v: null }));
+    res.forEach(o => { o.v = verdicts(o.r); o.vide = o.v.global.n === "attente"; });
+
+    // Une colonne encore vierge affiche des tirets plutôt que des zéros trompeurs.
+    const c = (o, valeur, formateur) => o.vide ? "—" : (formateur || arg)(valeur);
+    const cs = (o, valeur, formateur) =>
+      `<span class="${!o.vide && valeur < 0 ? "negatif" : ""}">${c(o, valeur, formateur)}</span>`;
+
+    const lignes = [
+      { l: "Prix d'achat", f: o => c(o, o.r.prix) },
+      { l: "Logements", f: o => o.r.portes },
+      { l: "Capital investi", f: o => c(o, o.r.capitalInvesti) },
+      { l: "Revenus bruts effectifs", f: o => c(o, o.r.rbe) },
+      { l: "Dépenses d'exploitation", f: o => c(o, o.r.depenses) },
+      { l: "Revenu net d'exploitation", f: o => c(o, o.r.rne), fort: true },
+      { l: "Service de la dette", f: o => c(o, o.r.serviceDette) },
+      { l: "Cashflow annuel", f: o => cs(o, o.r.cashflow) },
+      { l: "Cashflow par porte / mois", f: o => cs(o, o.r.parPorte, arg2), fort: true },
+      { l: "RCD", f: o => c(o, o.r.rcd, ratio) },
+      { l: "TGA", f: o => c(o, o.r.tga, pct) },
+      { l: "MRB", f: o => c(o, o.r.mrb, mult) },
+      { l: "Cash-on-cash", f: o => cs(o, o.r.coc, pct) },
+      { l: "Rendement total an 1", f: o => cs(o, o.r.rendementTotal, pct) },
+      { l: "Prix pour un RCD de 1,20", f: o => c(o, o.r.prixRcd) },
+      { l: "Écart avec le prix envisagé", f: o => o.vide ? "—" : `<span class="${o.r.ecartPrix < 0 ? "negatif" : ""}">${o.r.ecartPrix >= 0 ? "+" : ""}${arg(o.r.ecartPrix)}</span>` },
+      { l: "Verdict", f: o => `<span class="jeton ${o.v.global.n}">${GLYPHE[o.v.global.n]} ${esc(o.v.global.n === "attente" ? "À remplir" : o.v.global.t)}</span>`, fort: true }
+    ];
+
+    document.getElementById("table-comparaison").innerHTML = `
+      <thead><tr><th></th>${res.map(o => `<th>${esc(o.s.nom)}</th>`).join("")}</tr></thead>
+      <tbody>${lignes.map(li => `<tr class="${li.fort ? "marquante" : ""}"><td>${esc(li.l)}</td>${res.map(o => `<td>${li.f(o)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+  }
+
+  /* ==========================================================
+     CHECKLIST
+     ========================================================== */
+
+  const CHECKLIST = [
+    { titre: "Documents à exiger du vendeur", items: [
+      { id: "d1", q: "Tous les baux en vigueur, signés", p: "Vérifiez les dates, les montants, et surtout qui paie le chauffage.", c: "Réception et acceptation de tous les baux en vigueur" },
+      { id: "d2", q: "Registre des loyers des 24 derniers mois", p: "Cherchez les hausses irréalistes appliquées juste avant la mise en vente.", c: "Examen du registre des loyers des 24 derniers mois" },
+      { id: "d3", q: "Comptes de taxes municipales et scolaires", p: "Le document officiel, jamais un chiffre annoncé de vive voix.", c: "Vérification des comptes de taxes officiels" },
+      { id: "d4", q: "Factures d'énergie des 12 à 24 derniers mois", p: "Révèle l'isolation réelle et les logements chauffés aux frais du propriétaire.", c: "Examen des factures d'énergie" },
+      { id: "d5", q: "État certifié des revenus et dépenses", p: "Confrontez-le à vos propres chiffres, pas l'inverse.", c: "Réception de l'état certifié des revenus et dépenses" },
+      { id: "d6", q: "Police d'assurance et historique de réclamations", p: "Un historique chargé fera grimper votre prime, parfois beaucoup.", c: "Obtention d'une soumission d'assurance satisfaisante" },
+      { id: "d7", q: "Certificat de localisation à jour", p: "Empiètements, servitudes, non-conformités.", c: "Fourniture d'un certificat de localisation à jour" },
+      { id: "d8", q: "Déclaration du vendeur", p: "Chaque « je ne sais pas » est un point que vous devrez vérifier vous-même.", c: "Réception de la déclaration du vendeur" },
+      { id: "d9", q: "Factures des travaux majeurs des 15 dernières années", p: "Toiture, fenêtres, fondation, électricité, plomberie.", c: "Examen des factures de travaux majeurs" },
+      { id: "d10", q: "Historique au Tribunal administratif du logement", p: "Loyers contestés, non-paiements, litiges en cours.", c: "Vérification de l'historique au Tribunal administratif du logement" },
+      { id: "d11", q: "Baux commerciaux, s'il y a un local", p: "Durée, options de renouvellement, qui paie les taxes et l'entretien.", c: "Examen des baux commerciaux" }
+    ]},
+    { titre: "Vérifications à faire vous-même", items: [
+      { id: "v1", q: "Inspection préachat par un professionnel", p: "Assistez-y. Ce que l'inspecteur dit à voix haute ne se retrouve pas toujours au rapport.", c: "Inspection préachat satisfaisante à votre entière discrétion" },
+      { id: "v2", q: "Âge et état de la toiture", p: "Une toiture à refaire, c'est de 15 000 à 40 000 $.", c: "Vérification de l'état de la toiture" },
+      { id: "v3", q: "Type de plomberie et de panneau électrique", p: "Galvanisé ou fusibles : problème d'assurabilité avant d'être un problème de rénovation.", c: "Vérification de la plomberie et de l'installation électrique" },
+      { id: "v4", q: "État des balcons, escaliers et garde-corps", p: "Poste coûteux, et responsabilité civile directe.", c: "Vérification de l'état des balcons et escaliers" },
+      { id: "v5", q: "Chauffage : type, âge, et qui le paie", p: "Le chauffage aux frais du locataire change complètement votre calcul.", c: "Vérification du système de chauffage et de sa facturation" },
+      { id: "v6", q: "Réservoir de mazout enfoui, amiante, vermiculite, pyrite", p: "Ces découvertes peuvent tuer un financement, pas seulement coûter cher.", c: "Absence de contaminants et de réservoir enfoui" },
+      { id: "v7", q: "Zonage et conformité du nombre de logements", p: "Un logement au sous-sol non conforme peut disparaître de vos revenus.", c: "Confirmation du zonage et de la conformité des logements" },
+      { id: "v8", q: "TPS et TVQ sur une portion commerciale", p: "Peut représenter des dizaines de milliers de dollars au moment du notaire.", c: "Confirmation du traitement de la TPS et de la TVQ" },
+      { id: "v9", q: "Loyers actuels contre loyers du marché", p: "Un écart important est une occasion, ou un piège si les baux sont protégés.", c: "Analyse comparative des loyers du secteur" },
+      { id: "v10", q: "Taux d'inoccupation du secteur", p: "Données publiques et gratuites de la SCHL, par ville.", c: "Vérification du taux d'inoccupation du secteur" }
+    ]},
+    { titre: "Votre équipe, montée avant l'achat", items: [
+      { id: "e1", q: "Courtier hypothécaire", p: "Préqualification en main avant de magasiner sérieusement.", c: "Obtention du financement hypothécaire" },
+      { id: "e2", q: "Inspecteur en bâtiment", p: "Recommandé d'avance, pas trouvé en panique la veille de l'échéance.", c: "Mandat d'un inspecteur en bâtiment" },
+      { id: "e3", q: "Comptable qui connaît le locatif", p: "Structure de détention, amortissement, dépenses admissibles.", c: "Validation de la structure de détention avec un comptable" },
+      { id: "e4", q: "Notaire", p: "", c: "Mandat d'un notaire" },
+      { id: "e5", q: "Plombier, électricien, déneigeur du secteur", p: "Encore plus critique si vous achetez à distance.", c: "Constitution du carnet de contacts locaux" },
+      { id: "e6", q: "Gestionnaire immobilier, si achat à distance", p: "Demandez ses frais, son délai d'intervention, ses références.", c: "Entente avec un gestionnaire immobilier" },
+      { id: "e7", q: "Un contact fiable à proximité de l'immeuble", p: "Quelqu'un qui peut aller voir. Ça n'a pas de prix.", c: "" }
+    ]}
+  ];
+
+  function rendreChecklist() {
+    document.getElementById("zone-checklist").innerHTML = CHECKLIST.map(g => {
+      const faits = g.items.filter(it => etat.coches[it.id]).length;
+      return `<section class="groupe-check">
+        <div class="entete-groupe"><h3>${esc(g.titre)}</h3><span class="compte">${faits} / ${g.items.length}</span></div>
+        <ul class="liste-check">
+          ${g.items.map(it => `<li><label>
+            <input type="checkbox" data-check="${it.id}"${etat.coches[it.id] ? " checked" : ""}>
+            <span class="texte">
+              <span class="quoi">${esc(it.q)}</span>
+              ${it.p ? `<span class="pourquoi">${esc(it.p)}</span>` : ""}
+            </span>
+          </label></li>`).join("")}
+        </ul>
+      </section>`;
+    }).join("");
+
+    const tous = CHECKLIST.flatMap(g => g.items);
+    const faits = tous.filter(it => etat.coches[it.id]).length;
+    const p = Math.round(faits / tous.length * 100);
+    document.getElementById("jauge-check").style.width = p + "%";
+    document.getElementById("pc-check").textContent = p + " %";
+    document.getElementById("texte-check").textContent =
+      faits === tous.length
+        ? "Tout est vérifié. Les conditions ci-dessous restent utiles pour vous protéger jusqu'à la signature."
+        : `${tous.length - faits} point${tous.length - faits > 1 ? "s" : ""} encore ouvert${tous.length - faits > 1 ? "s" : ""}. Chacun devient une condition à votre offre.`;
+
+    const btnDecocher = document.getElementById("btn-decocher");
+    if (btnDecocher) btnDecocher.disabled = faits === 0;
+
+    const ouverts = tous.filter(it => !etat.coches[it.id] && it.c).map(it => it.c);
+    const socle = [
+      "Délai raisonnable pour compléter toutes les vérifications ci-dessus",
+      "Examen et acceptation de tous les documents demandés"
+    ];
+    const zone = document.getElementById("zone-conditions");
+    if (ouverts.length === 0) {
+      zone.innerHTML = `<p style="font-size:13px;color:var(--encre-2);margin:0;">Rien n'est resté ouvert. Conservez tout de même ces protections de base&nbsp;:</p>
+        <ol>${socle.map(c => `<li>${esc(c)}</li>`).join("")}</ol>`;
+    } else {
+      zone.innerHTML = `<p style="font-size:13px;color:var(--encre-2);margin:0;">Ces ${ouverts.length + socle.length} conditions découlent de ce que vous n'avez pas encore vérifié.</p>
+        <ol>${ouverts.concat(socle).map(c => `<li>${esc(c)}</li>`).join("")}</ol>`;
+    }
+  }
+
+  /* ==========================================================
+     SCÉNARIOS
+     ========================================================== */
+
+  function rendreScenarios() {
+    document.getElementById("jeu-scenarios").innerHTML = etat.scenarios.map((s, n) => `
+      <button class="puce-scenario" data-scenario="${n}" aria-pressed="${n === etat.actif}">
+        <span class="pastille"></span>${esc(s.nom)}
+      </button>`).join("");
+    document.getElementById("bascule-comparaison").checked = etat.comparer;
+  }
+
+  /* ==========================================================
+     RENDU GLOBAL
+     ========================================================== */
+
+  function tout() {
+    rendreScenarios();
+    rendreFormulaire();
+    rendreBord();
+    rendreComparaison();
+  }
+
+  function rafraichirChiffres() {
+    rendreBord();
+    rendreComparaison();
+    // Met à jour les lignes calculées et les résumés de section sans reconstruire les champs.
+    const s = etat.scenarios[etat.actif];
+    const r = calculer(s);
+    const sections = structureFormulaire(s);
+    document.querySelectorAll(".section-form").forEach((d, n) => {
+      if (!sections[n]) return;
+      const res = d.querySelector(".resume");
+      if (res) res.textContent = sections[n].resume(r);
+      const calcs = sections[n].champs.filter(c => c.calc);
+      const cells = d.querySelectorAll(".ligne.calculee .valeur");
+      calcs.forEach((c, k) => {
+        if (!cells[k]) return;
+        const v = r[c.calc];
+        cells[k].textContent = (c.fmt || arg)(v);
+        cells[k].classList.toggle("negatif", v < 0);
+      });
+      const autoMut = d.querySelector('input[data-cle="mutation"]');
+      if (autoMut && autoMut.disabled) autoMut.value = Math.round(r.mutation);
+    });
+  }
+
+  /* ==========================================================
+     ÉVÉNEMENTS
+     ========================================================== */
+
+  function allerA(page) {
+    document.querySelectorAll(".onglet").forEach(o => o.setAttribute("aria-selected", String(o.dataset.page === page)));
+    document.querySelectorAll(".page").forEach(p => p.classList.toggle("actif", p.id === "page-" + page));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  document.querySelectorAll(".onglet").forEach(o => o.addEventListener("click", () => allerA(o.dataset.page)));
+
+  document.addEventListener("input", (e) => {
+    const t = e.target;
+
+    if (t.classList.contains("saisie")) {
+      const s = etat.scenarios[etat.actif];
+      const cle = t.dataset.cle;
+      const v = t.type === "number" ? (t.value === "" ? 0 : parseFloat(t.value)) : t.value;
+      ecrireValeur(s, cle, Number.isNaN(v) ? 0 : v);
+      if (cle === "portes") { rendreFormulaire(); rendreBord(); rendreComparaison(); }
+      else rafraichirChiffres();
+      sauver();
+      return;
+    }
+
+    if (t.id === "st-taux" || t.id === "st-vacance" || t.id === "st-loyer") {
+      etat.stress[t.id.slice(3)] = parseFloat(t.value);
+      rendreBord();
+      return;
+    }
+  });
+
+  document.addEventListener("change", (e) => {
+    const t = e.target;
+
+    if (t.dataset.bascule) {
+      etat.scenarios[etat.actif][t.dataset.bascule] = t.checked;
+      rendreFormulaire(); rendreBord(); rendreComparaison(); sauver();
+      return;
+    }
+    if (t.dataset.auto) {
+      const s = etat.scenarios[etat.actif];
+      // En repassant en saisie manuelle, on part du montant calculé plutôt que de zéro.
+      if (!t.checked && t.dataset.auto === "mutationAuto") s.mutation = Math.round(droitsMutation(+s.prixAchat || 0));
+      s[t.dataset.auto] = t.checked;
+      rendreFormulaire(); rafraichirChiffres(); sauver();
+      return;
+    }
+    if (t.dataset.check) {
+      etat.coches[t.dataset.check] = t.checked;
+      rendreChecklist(); sauver();
+      return;
+    }
+    if (t.id === "bascule-comparaison") {
+      etat.comparer = t.checked;
+      rendreComparaison(); sauver();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    const p = e.target.closest("[data-scenario]");
+    if (p) {
+      etat.actif = +p.dataset.scenario;
+      etat.stress = { taux: 0, vacance: 0, loyer: 0 };
+      tout(); sauver();
+      return;
+    }
+    if (e.target.id === "btn-stress-zero") {
+      etat.stress = { taux: 0, vacance: 0, loyer: 0 };
+      rendreBord();
+      return;
+    }
+    if (e.target.id === "btn-decocher") {
+      etat.coches = {};
+      rendreChecklist(); sauver();
+    }
+  });
+
+  // Thème
+  const btnTheme = document.getElementById("btn-theme");
+  btnTheme.addEventListener("click", () => {
+    const actuel = document.documentElement.getAttribute("data-theme");
+    const sombreSysteme = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const suivant = actuel ? (actuel === "dark" ? "light" : "dark") : (sombreSysteme ? "light" : "dark");
+    document.documentElement.setAttribute("data-theme", suivant);
+  });
+
+  /* ----------------------------------------------------------
+     Sauvegarde et reprise.
+     Le téléchargement de fichier est bloqué dans certains cadres
+     d'affichage, donc le copier-coller est la voie principale et
+     le fichier n'est qu'un complément.
+     ---------------------------------------------------------- */
+
+  const fenetre = document.getElementById("fenetre");
+  const zone = document.getElementById("fenetre-zone");
+  const message = document.getElementById("fenetre-message");
+  const actions = document.getElementById("fenetre-actions");
+
+  // Affiché dans un cadre (page web imbriquée), le téléchargement et l'impression sont
+  // souvent bloqués par le navigateur. Ouvert comme fichier, tout fonctionne. On adapte
+  // donc l'ordre des solutions proposées au lieu d'imposer la même partout.
+  const dansUnCadre = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+
+  const nomFichier = () => "analyse-rentabilite-" + new Date().toISOString().slice(0, 10) + ".json";
+  const texteExport = () => JSON.stringify(
+    { version: 1, exporte: new Date().toISOString(), scenarios: etat.scenarios, coches: etat.coches }, null, 2);
+
+  const dire = (txt, genre) => { message.textContent = txt; message.className = "fenetre-message " + (genre || ""); };
+
+  const appliquer = (brut) => {
+    const d = JSON.parse(brut);
+    if (!d || !Array.isArray(d.scenarios) || d.scenarios.length !== 3) throw new Error("format");
+    etat.scenarios = d.scenarios.map(normaliser);
+    etat.coches = d.coches || {};
+    etat.actif = 0;
+    tout(); rendreChecklist(); sauver();
+  };
+
+  document.getElementById("fenetre-fermer").addEventListener("click", () => fenetre.close());
+
+  // ---- Sauvegarder ----
+  document.getElementById("btn-exporter").addEventListener("click", () => {
+    document.getElementById("fenetre-titre").textContent = "Sauvegarder vos chiffres";
+    document.getElementById("fenetre-texte").innerHTML = dansUnCadre
+      ? "Vos trois immeubles et vos cases cochées. Ici, le téléchargement de fichier est souvent bloqué : "
+        + "<b>copiez plutôt le texte</b> et collez-le dans un courriel ou une note. Pour le reprendre, "
+        + "utilisez Importer et recollez-le."
+      : "Vos trois immeubles et vos cases cochées. <b>Téléchargez le fichier</b> pour le conserver ou l'envoyer. "
+        + "Vous pouvez aussi copier le texte et le coller dans un courriel : les deux formats se rechargent "
+        + "avec le bouton Importer.";
+    zone.value = texteExport();
+    zone.readOnly = true;
+    zone.style.display = "";
+    dire("");
+    actions.innerHTML = dansUnCadre
+      ? '<button class="btn btn-fort" type="button" id="act-copier">Copier le texte</button>'
+        + '<button class="btn" type="button" id="act-fichier">Essayer le téléchargement</button>'
+      : '<button class="btn btn-fort" type="button" id="act-fichier">Télécharger le fichier</button>'
+        + '<button class="btn" type="button" id="act-copier">Copier le texte</button>';
+
+    document.getElementById("act-copier").addEventListener("click", async () => {
+      zone.focus(); zone.select();
+      let copie = false;
+      try { await navigator.clipboard.writeText(zone.value); copie = true; }
+      catch (e) { try { copie = document.execCommand("copy"); } catch (e2) { copie = false; } }
+      dire(copie ? "Copié. Collez-le maintenant dans un courriel ou un fichier texte."
+                 : "Le texte est sélectionné : faites Ctrl+C pour le copier.", copie ? "bien" : "");
+    });
+
+    document.getElementById("act-fichier").addEventListener("click", () => {
+      try {
+        const blob = new Blob([zone.value], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = nomFichier();
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        dire(dansUnCadre
+          ? "Fichier « " + nomFichier() + " » envoyé. S'il n'apparaît pas dans vos téléchargements, "
+            + "c'est que ce cadre les bloque : utilisez Copier le texte."
+          : "Enregistré sous « " + nomFichier() + " » dans vos téléchargements.",
+          dansUnCadre ? "" : "bien");
+      } catch (e) {
+        dire("Le téléchargement est bloqué ici. Utilisez Copier le texte, c'est équivalent.", "mal");
+      }
+    });
+
+    fenetre.showModal();
+    zone.focus(); zone.select(); zone.scrollTop = 0;
+  });
+
+  // ---- Reprendre ----
+  document.getElementById("btn-importer").addEventListener("click", () => {
+    document.getElementById("fenetre-titre").textContent = "Reprendre une sauvegarde";
+    document.getElementById("fenetre-texte").innerHTML = dansUnCadre
+      ? "<b>Collez ici</b> le texte obtenu avec le bouton Exporter, puis cliquez sur Charger. "
+        + "Vos chiffres actuels seront remplacés."
+      : "<b>Ouvrez votre fichier de sauvegarde</b>, ou collez ci-dessous le texte obtenu avec Exporter. "
+        + "Vos chiffres actuels seront remplacés.";
+    zone.value = "";
+    zone.readOnly = false;
+    zone.style.display = "";
+    dire("");
+    actions.innerHTML = dansUnCadre
+      ? '<button class="btn btn-fort" type="button" id="act-charger">Charger le texte collé</button>'
+        + '<button class="btn" type="button" id="act-ouvrir">Ouvrir un fichier…</button>'
+      : '<button class="btn btn-fort" type="button" id="act-ouvrir">Ouvrir un fichier…</button>'
+        + '<button class="btn" type="button" id="act-charger">Charger le texte collé</button>';
+
+    document.getElementById("act-charger").addEventListener("click", () => {
+      const brut = zone.value.trim();
+      if (!brut) { dire("Collez d'abord le texte de votre sauvegarde.", "mal"); return; }
+      try {
+        appliquer(brut);
+        dire("Chargé. Vos trois immeubles sont revenus.", "bien");
+        setTimeout(() => fenetre.close(), 900);
+      } catch (e) {
+        dire("Ce texte n'est pas une sauvegarde de cet outil. Recopiez-le en entier, "
+           + "des premières accolades jusqu'aux dernières.", "mal");
+      }
+    });
+
+    document.getElementById("act-ouvrir").addEventListener("click", () => {
+      const inp = document.createElement("input");
+      inp.type = "file"; inp.accept = "application/json,.json,.txt";
+      inp.addEventListener("change", () => {
+        const f = inp.files && inp.files[0];
+        if (!f) return;
+        const lecteur = new FileReader();
+        lecteur.onload = () => {
+          try {
+            appliquer(lecteur.result);
+            dire("Chargé depuis « " + f.name + " ».", "bien");
+            setTimeout(() => fenetre.close(), 900);
+          } catch (err) {
+            dire("Fichier illisible. Attendu : une sauvegarde produite par cet outil.", "mal");
+          }
+        };
+        lecteur.readAsText(f);
+      });
+      inp.click();
+    });
+
+    fenetre.showModal();
+    zone.focus();
+  });
+
+  document.getElementById("btn-imprimer").addEventListener("click", () => {
+    document.querySelectorAll("details").forEach(d => d.open = true);
+
+    // La feuille imprimée doit dire de quel immeuble elle parle et de quand elle date.
+    const s = etat.scenarios[etat.actif];
+    const onglet = document.querySelector(".onglet[aria-selected='true']");
+    const partie = onglet ? onglet.textContent.replace(/^\d+/, "").trim() : "";
+    document.getElementById("impr-sujet").textContent =
+      partie + (partie === "Calculateur" ? " · " + s.nom + (s.description ? " · " + s.description : "") : "");
+    document.getElementById("impr-date").textContent =
+      new Date().toLocaleDateString("fr-CA", { year: "numeric", month: "long", day: "numeric" });
+
+    let lancee = true;
+    try { window.print(); } catch (e) { lancee = false; }
+
+    // Dans un cadre imbriqué, l'appel peut être ignoré sans erreur. On le dit au lieu
+    // de laisser l'utilisateur devant un bouton qui ne fait rien.
+    if (dansUnCadre || !lancee) {
+      document.getElementById("fenetre-titre").textContent = "Imprimer";
+      document.getElementById("fenetre-texte").innerHTML =
+        "Si la fenêtre d'impression vient de s'ouvrir, ignorez ce message et fermez cette fenêtre.<br><br>"
+        + "<b>Sinon, c'est que l'affichage dans cette page bloque l'impression.</b> Deux solutions : "
+        + "utilisez le raccourci <b>Ctrl+P</b> (ou Cmd+P sur Mac) après avoir cliqué dans la page, "
+        + "ou ouvrez le calculateur comme fichier sur votre ordinateur, où l'impression fonctionne normalement.";
+      zone.value = "";
+      zone.readOnly = true;
+      zone.style.display = "none";
+      dire("");
+      actions.innerHTML = '<button class="btn btn-fort" type="button" id="act-reimprimer">Réessayer l\'impression</button>';
+      document.getElementById("act-reimprimer").addEventListener("click", () => {
+        try { window.print(); dire("Commande d'impression renvoyée.", "bien"); }
+        catch (e) { dire("L'impression reste bloquée ici. Passez par le fichier sur votre ordinateur.", "mal"); }
+      });
+      fenetre.showModal();
+    }
+  });
+
+  // La zone de texte est masquée par la fenêtre d'impression : on la rétablit ensuite.
+  fenetre.addEventListener("close", () => { zone.style.display = ""; });
+
+  document.getElementById("btn-reinit").addEventListener("click", () => {
+    if (!confirm("Effacer vos chiffres et vos cases cochées, et revenir aux deux exemples ? Cette action ne peut pas être annulée.")) return;
+    etat.scenarios = JSON.parse(JSON.stringify(EXEMPLES));
+    etat.coches = {};
+    etat.actif = 0; // même point de départ qu'à la première ouverture
+    etat.stress = { taux: 0, vacance: 0, loyer: 0 };
+    tout(); rendreChecklist(); sauver();
+  });
+
+  /* ==========================================================
+     DÉMARRAGE
+     ========================================================== */
+
+  charger();
+  rendreLexique();
+  tout();
+  rendreChecklist();
+})();
+</script>
+
+</body>
+</html>
